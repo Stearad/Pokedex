@@ -1,13 +1,14 @@
 {
   "name": "Pokémon HOME 図鑑管理",
   "short_name": "ポケモン図鑑",
-  "start_url": "./index.html",
+  "start_url": "/Pokedex/index.html",
+  "scope": "/Pokedex/",
   "display": "standalone",
   "background_color": "#1e293b",
   "theme_color": "#1e293b",
   "icons": [
     {
-      "src": "./icon.png",
+      "src": "/Pokedex/icon.png",
       "sizes": "512x512",
       "type": "image/png"
     }
