@@ -1,0 +1,2047 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ポケモン全国図鑑＆プレミアボール管理</title>
+  <style>
+    :root {
+      --bg-color: #f4f6f8;
+      --header-bg: #1e293b;
+      --header-text: #ffffff;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --caught-normal-bg: #dcfce7;
+      --caught-normal-border: #4ade80;
+      --caught-shiny-bg: #fef3c7;
+      --caught-shiny-border: #fbbf24;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --accent-normal: #10b981;
+      --accent-shiny: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding-top: 175px; /* ヘッダーの高さ分 */
+      padding-bottom: 40px;
+    }
+
+    /* 固定ヘッダー */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background-color: var(--header-bg);
+      color: var(--header-text);
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      padding: 10px 12px;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .app-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: 0.02em;
+    }
+
+    .backup-btn {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    /* ページ切替タブ（将来の別図鑑追加用） */
+    .page-tabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      margin-bottom: 8px;
+      padding-bottom: 2px;
+    }
+
+    .page-tab {
+      background: rgba(255, 255, 255, 0.1);
+      color: #cbd5e1;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .page-tab.active {
+      background: #3b82f6;
+      color: #ffffff;
+    }
+
+    /* 通常色 / 色違い 切替＆カウンター */
+    .mode-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .mode-switch {
+      display: flex;
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .mode-btn {
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .mode-btn.active[data-mode="normal"] {
+      background: var(--accent-normal);
+      color: #fff;
+    }
+
+    .mode-btn.active[data-mode="shiny"] {
+      background: var(--accent-shiny);
+      color: #fff;
+    }
+
+    .stats-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 700;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: #cbd5e1;
+      font-weight: 400;
+    }
+
+    /* 検索・フィルター */
+    .filter-bar {
+      display: flex;
+      gap: 6px;
+    }
+
+    .search-input {
+      flex: 1;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: none;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .filter-select {
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: none;
+      font-size: 12px;
+      background: #fff;
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    /* リストコンテナ */
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 8px 12px;
+    }
+
+    .pokemon-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* ポケモンタイル（1行） */
+    .poke-tile {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: var(--card-bg);
+      border: 1.5px solid var(--card-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.12s, border-color 0.12s, transform 0.05s;
+    }
+
+    .poke-tile:active {
+      transform: scale(0.99);
+    }
+
+    /* 所持済の色変化（通常色モード） */
+    body[data-mode="normal"] .poke-tile.caught {
+      background-color: var(--caught-normal-bg);
+      border-color: var(--caught-normal-border);
+    }
+
+    /* 所持済の色変化（色違いモード） */
+    body[data-mode="shiny"] .poke-tile.caught {
+      background-color: var(--caught-shiny-bg);
+      border-color: var(--caught-shiny-border);
+    }
+
+    .poke-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    .poke-num {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      min-width: 42px;
+    }
+
+    .poke-name {
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .poke-form {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(0, 0, 0, 0.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    /* プレミアボールボタン */
+    .ball-btn {
+      background: none;
+      border: none;
+      padding: 6px;
+      margin: -6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+    }
+
+    .ball-btn:active {
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    .ball-icon {
+      width: 28px;
+      height: 28px;
+      transition: transform 0.15s;
+    }
+
+    .ball-btn.premier .ball-icon {
+      transform: scale(1.08);
+    }
+
+    /* モーダル（データバックアップ用） */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+    }
+
+    .modal-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: 0 0 10px 0;
+    }
+
+    .backup-textarea {
+      width: 100%;
+      height: 120px;
+      font-size: 11px;
+      font-family: monospace;
+      padding: 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #1e293b;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body data-mode="normal">
+
+  <header>
+    <div class="header-top">
+      <h1 class="app-title">Pokémon HOME 図鑑管理</h1>
+      <button class="backup-btn" onclick="openBackupModal()">データ引継ぎ</button>
+    </div>
+
+    <div class="page-tabs" id="pageTabs">
+      <button class="page-tab active" data-dex="national" onclick="switchDex('national')">全国図鑑</button>
+      <button class="page-tab" data-dex="unown" onclick="switchDex('unown')">アンノーン図鑑</button>
+      <button class="page-tab" data-dex="vivillon" onclick="switchDex('vivillon')">ビビヨン図鑑</button>
+      <button class="page-tab" data-dex="alcremie" onclick="switchDex('alcremie')">マホイップ図鑑</button>
+    </div>
+
+    <div class="mode-bar">
+      <div class="mode-switch">
+        <button class="mode-btn active" data-mode="normal" onclick="switchMode('normal')">通常色</button>
+        <button class="mode-btn" data-mode="shiny" onclick="switchMode('shiny')">色違い</button>
+      </div>
+
+      <div class="stats-box">
+        <div class="stat-item">
+          <span class="stat-label">所持:</span>
+          <span id="caughtCount">0</span>/<span id="totalCount">0</span>
+        </div>
+        <div class="stat-item" style="color: #fca5a5;">
+          <span class="stat-label">プレボ:</span>
+          <span id="premierCount">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <input type="text" id="searchInput" class="search-input" placeholder="名前・No検索..." oninput="renderList()" />
+      <select id="regionSelect" class="filter-select" onchange="renderList()">
+        <option value="all">全地方</option>
+        <option value="kanto">カントー</option>
+        <option value="johto">ジョウト</option>
+        <option value="hoenn">ホウエン</option>
+        <option value="sinnoh">シンオウ</option>
+        <option value="unova">イッシュ</option>
+        <option value="kalos">カロス</option>
+        <option value="alola">アローラ</option>
+        <option value="galar">ガラル・ヒスイ</option>
+        <option value="paldea">パルデア</option>
+      </select>
+      <select id="filterSelect" class="filter-select" onchange="renderList()">
+        <option value="all">すべて</option>
+        <option value="uncaught">未所持のみ</option>
+        <option value="unpremier">プレボ未捕獲</option>
+        <option value="premier">プレボ済のみ</option>
+      </select>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="pokemon-list" id="pokemonList"></div>
+  </main>
+
+  <!-- バックアップモーダル -->
+  <div class="modal-overlay" id="backupModal">
+    <div class="modal-box">
+      <h2 class="modal-title">データのバックアップ・復元</h2>
+      <p class="modal-desc">機種変更時は下のテキストをコピーして保存し、新しい端末で貼り付けて「復元」を押してください。</p>
+      <textarea id="backupText" class="backup-textarea"></textarea>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeBackupModal()">閉じる</button>
+        <button class="btn-secondary" onclick="copyBackup()">コピー</button>
+        <button class="btn-primary" onclick="restoreBackup()">貼り付けたデータで復元</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. ポケモンデータ（ステップ2でここを全種データに差し替えます）
+    // 形式: { id: "一意のID", no: "図鑑番号", name: "ポケモン名", form: "姿の名前(任意)" }
+    // ==========================================
+    const DEX_DATA = {
+      national: [
+        // ==========================================
+        // 第1世代（カントー：No.0001〜0151）
+        // ==========================================
+        { id: "0001", no: "0001", name: "フシギダネ", form: "" },
+        { id: "0002", no: "0002", name: "フシギソウ", form: "" },
+        { id: "0003", no: "0003", name: "フシギバナ", form: "" },
+        { id: "0004", no: "0004", name: "ヒトカゲ", form: "" },
+        { id: "0005", no: "0005", name: "リザード", form: "" },
+        { id: "0006", no: "0006", name: "リザードン", form: "" },
+        { id: "0007", no: "0007", name: "ゼニガメ", form: "" },
+        { id: "0008", no: "0008", name: "カメール", form: "" },
+        { id: "0009", no: "0009", name: "カメックス", form: "" },
+        { id: "0010", no: "0010", name: "キャタピー", form: "" },
+        { id: "0011", no: "0011", name: "トランセル", form: "" },
+        { id: "0012", no: "0012", name: "バタフリー", form: "" },
+        { id: "0013", no: "0013", name: "ビードル", form: "" },
+        { id: "0014", no: "0014", name: "コクーン", form: "" },
+        { id: "0015", no: "0015", name: "スピアー", form: "" },
+        { id: "0016", no: "0016", name: "ポッポ", form: "" },
+        { id: "0017", no: "0017", name: "ピジョン", form: "" },
+        { id: "0018", no: "0018", name: "ピジョット", form: "" },
+        { id: "0019", no: "0019", name: "コラッタ", form: "" },
+        { id: "0019_a", no: "0019", name: "コラッタ", form: "アローラのすがた" },
+        { id: "0020", no: "0020", name: "ラッタ", form: "" },
+        { id: "0020_a", no: "0020", name: "ラッタ", form: "アローラのすがた" },
+        { id: "0021", no: "0021", name: "オニスズメ", form: "" },
+        { id: "0022", no: "0022", name: "オニドリル", form: "" },
+        { id: "0023", no: "0023", name: "アーボ", form: "" },
+        { id: "0024", no: "0024", name: "アーボック", form: "" },
+        { id: "0025", no: "0025", name: "ピカチュウ", form: "" },
+        { id: "0026", no: "0026", name: "ライチュウ", form: "" },
+        { id: "0026_a", no: "0026", name: "ライチュウ", form: "アローラのすがた" },
+        { id: "0027", no: "0027", name: "サンド", form: "" },
+        { id: "0027_a", no: "0027", name: "サンド", form: "アローラのすがた" },
+        { id: "0028", no: "0028", name: "サンドパン", form: "" },
+        { id: "0028_a", no: "0028", name: "サンドパン", form: "アローラのすがた" },
+        { id: "0029", no: "0029", name: "ニドラン♀", form: "" },
+        { id: "0030", no: "0030", name: "ニドリーナ", form: "" },
+        { id: "0031", no: "0031", name: "ニドクイン", form: "" },
+        { id: "0032", no: "0032", name: "ニドラン♂", form: "" },
+        { id: "0033", no: "0033", name: "ニドリーノ", form: "" },
+        { id: "0034", no: "0034", name: "ニドキング", form: "" },
+        { id: "0035", no: "0035", name: "ピッピ", form: "" },
+        { id: "0036", no: "0036", name: "ピクシー", form: "" },
+        { id: "0037", no: "0037", name: "ロコン", form: "" },
+        { id: "0037_a", no: "0037", name: "ロコン", form: "アローラのすがた" },
+        { id: "0038", no: "0038", name: "キュウコン", form: "" },
+        { id: "0038_a", no: "0038", name: "キュウコン", form: "アローラのすがた" },
+        { id: "0039", no: "0039", name: "プリン", form: "" },
+        { id: "0040", no: "0040", name: "プクリン", form: "" },
+        { id: "0041", no: "0041", name: "ズバット", form: "" },
+        { id: "0042", no: "0042", name: "ゴルバット", form: "" },
+        { id: "0043", no: "0043", name: "ナゾノクサ", form: "" },
+        { id: "0044", no: "0044", name: "クサイハナ", form: "" },
+        { id: "0045", no: "0045", name: "ラフレシア", form: "" },
+        { id: "0046", no: "0046", name: "パラス", form: "" },
+        { id: "0047", no: "0047", name: "パラセクト", form: "" },
+        { id: "0048", no: "0048", name: "コンパン", form: "" },
+        { id: "0049", no: "0049", name: "モルフォン", form: "" },
+        { id: "0050", no: "0050", name: "ディグダ", form: "" },
+        { id: "0050_a", no: "0050", name: "ディグダ", form: "アローラのすがた" },
+        { id: "0051", no: "0051", name: "ダグトリオ", form: "" },
+        { id: "0051_a", no: "0051", name: "ダグトリオ", form: "アローラのすがた" },
+        { id: "0052", no: "0052", name: "ニャース", form: "" },
+        { id: "0052_a", no: "0052", name: "ニャース", form: "アローラのすがた" },
+        { id: "0052_g", no: "0052", name: "ニャース", form: "ガラルのすがた" },
+        { id: "0053", no: "0053", name: "ペルシアン", form: "" },
+        { id: "0053_a", no: "0053", name: "ペルシアン", form: "アローラのすがた" },
+        { id: "0054", no: "0054", name: "コダック", form: "" },
+        { id: "0055", no: "0055", name: "ゴルダック", form: "" },
+        { id: "0056", no: "0056", name: "マンキー", form: "" },
+        { id: "0057", no: "0057", name: "オコリザル", form: "" },
+        { id: "0058", no: "0058", name: "ガーディ", form: "" },
+        { id: "0058_h", no: "0058", name: "ガーディ", form: "ヒスイのすがた" },
+        { id: "0059", no: "0059", name: "ウインディ", form: "" },
+        { id: "0059_h", no: "0059", name: "ウインディ", form: "ヒスイのすがた" },
+        { id: "0060", no: "0060", name: "ニョロモ", form: "" },
+        { id: "0061", no: "0061", name: "ニョロゾ", form: "" },
+        { id: "0062", no: "0062", name: "ニョロボン", form: "" },
+        { id: "0063", no: "0063", name: "ケーシィ", form: "" },
+        { id: "0064", no: "0064", name: "ユンゲラー", form: "" },
+        { id: "0065", no: "0065", name: "フーディン", form: "" },
+        { id: "0066", no: "0066", name: "ワンリキー", form: "" },
+        { id: "0067", no: "0067", name: "ゴーリキー", form: "" },
+        { id: "0068", no: "0068", name: "カイリキー", form: "" },
+        { id: "0069", no: "0069", name: "マダツボミ", form: "" },
+        { id: "0070", no: "0070", name: "ウツドン", form: "" },
+        { id: "0071", no: "0071", name: "ウツボット", form: "" },
+        { id: "0072", no: "0072", name: "メノクラゲ", form: "" },
+        { id: "0073", no: "0073", name: "ドククラゲ", form: "" },
+        { id: "0074", no: "0074", name: "イシツブテ", form: "" },
+        { id: "0074_a", no: "0074", name: "イシツブテ", form: "アローラのすがた" },
+        { id: "0075", no: "0075", name: "ゴローン", form: "" },
+        { id: "0075_a", no: "0075", name: "ゴローン", form: "アローラのすがた" },
+        { id: "0076", no: "0076", name: "ゴローニャ", form: "" },
+        { id: "0076_a", no: "0076", name: "ゴローニャ", form: "アローラのすがた" },
+        { id: "0077", no: "0077", name: "ポニータ", form: "" },
+        { id: "0077_g", no: "0077", name: "ポニータ", form: "ガラルのすがた" },
+        { id: "0078", no: "0078", name: "ギャロップ", form: "" },
+        { id: "0078_g", no: "0078", name: "ギャロップ", form: "ガラルのすがた" },
+        { id: "0079", no: "0079", name: "ヤドン", form: "" },
+        { id: "0079_g", no: "0079", name: "ヤドン", form: "ガラルのすがた" },
+        { id: "0080", no: "0080", name: "ヤドラン", form: "" },
+        { id: "0080_g", no: "0080", name: "ヤドラン", form: "ガラルのすがた" },
+        { id: "0081", no: "0081", name: "コイル", form: "" },
+        { id: "0082", no: "0082", name: "レアコイル", form: "" },
+        { id: "0083", no: "0083", name: "カモネギ", form: "" },
+        { id: "0083_g", no: "0083", name: "カモネギ", form: "ガラルのすがた" },
+        { id: "0084", no: "0084", name: "ドードー", form: "" },
+        { id: "0085", no: "0085", name: "ドードリオ", form: "" },
+        { id: "0086", no: "0086", name: "パウワウ", form: "" },
+        { id: "0087", no: "0087", name: "ジュゴン", form: "" },
+        { id: "0088", no: "0088", name: "ベトベター", form: "" },
+        { id: "0088_a", no: "0088", name: "ベトベター", form: "アローラのすがた" },
+        { id: "0089", no: "0089", name: "ベトベトン", form: "" },
+        { id: "0089_a", no: "0089", name: "ベトベトン", form: "アローラのすがた" },
+        { id: "0090", no: "0090", name: "シェルダー", form: "" },
+        { id: "0091", no: "0091", name: "パルシェン", form: "" },
+        { id: "0092", no: "0092", name: "ゴース", form: "" },
+        { id: "0093", no: "0093", name: "ゴースト", form: "" },
+        { id: "0094", no: "0094", name: "ゲンガー", form: "" },
+        { id: "0095", no: "0095", name: "イワーク", form: "" },
+        { id: "0096", no: "0096", name: "スリープ", form: "" },
+        { id: "0097", no: "0097", name: "スリーパー", form: "" },
+        { id: "0098", no: "0098", name: "クラブ", form: "" },
+        { id: "0099", no: "0099", name: "キングラー", form: "" },
+        { id: "0100", no: "0100", name: "ビリリダマ", form: "" },
+        { id: "0100_h", no: "0100", name: "ビリリダマ", form: "ヒスイのすがた" },
+        { id: "0101", no: "0101", name: "マルマイン", form: "" },
+        { id: "0101_h", no: "0101", name: "マルマイン", form: "ヒスイのすがた" },
+        { id: "0102", no: "0102", name: "タマタマ", form: "" },
+        { id: "0103", no: "0103", name: "ナッシー", form: "" },
+        { id: "0103_a", no: "0103", name: "ナッシー", form: "アローラのすがた" },
+        { id: "0104", no: "0104", name: "カラカラ", form: "" },
+        { id: "0105", no: "0105", name: "ガラガラ", form: "" },
+        { id: "0105_a", no: "0105", name: "ガラガラ", form: "アローラのすがた" },
+        { id: "0106", no: "0106", name: "サワムラー", form: "" },
+        { id: "0107", no: "0107", name: "エビワラー", form: "" },
+        { id: "0108", no: "0108", name: "ベロリンガ", form: "" },
+        { id: "0109", no: "0109", name: "ドガース", form: "" },
+        { id: "0110", no: "0110", name: "マタドガス", form: "" },
+        { id: "0110_g", no: "0110", name: "マタドガス", form: "ガラルのすがた" },
+        { id: "0111", no: "0111", name: "サイホーン", form: "" },
+        { id: "0112", no: "0112", name: "サイドン", form: "" },
+        { id: "0113", no: "0113", name: "ラッキー", form: "" },
+        { id: "0114", no: "0114", name: "モンジャラ", form: "" },
+        { id: "0115", no: "0115", name: "ガルーラ", form: "" },
+        { id: "0116", no: "0116", name: "タッツー", form: "" },
+        { id: "0117", no: "0117", name: "シードラ", form: "" },
+        { id: "0118", no: "0118", name: "トサキント", form: "" },
+        { id: "0119", no: "0119", name: "アズマオウ", form: "" },
+        { id: "0120", no: "0120", name: "ヒトデマン", form: "" },
+        { id: "0121", no: "0121", name: "スターミー", form: "" },
+        { id: "0122", no: "0122", name: "バリヤード", form: "" },
+        { id: "0122_g", no: "0122", name: "バリヤード", form: "ガラルのすがた" },
+        { id: "0123", no: "0123", name: "ストライク", form: "" },
+        { id: "0124", no: "0124", name: "ルージュラ", form: "" },
+        { id: "0125", no: "0125", name: "エレブー", form: "" },
+        { id: "0126", no: "0126", name: "ブーバー", form: "" },
+        { id: "0127", no: "0127", name: "カイロス", form: "" },
+        { id: "0128", no: "0128", name: "ケンタロス", form: "" },
+        { id: "0128_p1", no: "0128", name: "ケンタロス", form: "パルデア・コンバット種" },
+        { id: "0128_p2", no: "0128", name: "ケンタロス", form: "パルデア・ブレイズ種" },
+        { id: "0128_p3", no: "0128", name: "ケンタロス", form: "パルデア・ウォーター種" },
+        { id: "0129", no: "0129", name: "コイキング", form: "" },
+        { id: "0130", no: "0130", name: "ギャラドス", form: "" },
+        { id: "0131", no: "0131", name: "ラプラス", form: "" },
+        { id: "0132", no: "0132", name: "メタモン", form: "" },
+        { id: "0133", no: "0133", name: "イーブイ", form: "" },
+        { id: "0134", no: "0134", name: "シャワーズ", form: "" },
+        { id: "0135", no: "0135", name: "サンダース", form: "" },
+        { id: "0136", no: "0136", name: "ブースター", form: "" },
+        { id: "0137", no: "0137", name: "ポリゴン", form: "" },
+        { id: "0138", no: "0138", name: "オムナイト", form: "" },
+        { id: "0139", no: "0139", name: "オムスター", form: "" },
+        { id: "0140", no: "0140", name: "カブト", form: "" },
+        { id: "0141", no: "0141", name: "カブトプス", form: "" },
+        { id: "0142", no: "0142", name: "プテラ", form: "" },
+        { id: "0143", no: "0143", name: "カビゴン", form: "" },
+        { id: "0144", no: "0144", name: "フリーザー", form: "" },
+        { id: "0144_g", no: "0144", name: "フリーザー", form: "ガラルのすがた" },
+        { id: "0145", no: "0145", name: "サンダー", form: "" },
+        { id: "0145_g", no: "0145", name: "サンダー", form: "ガラルのすがた" },
+        { id: "0146", no: "0146", name: "ファイヤー", form: "" },
+        { id: "0146_g", no: "0146", name: "ファイヤー", form: "ガラルのすがた" },
+        { id: "0147", no: "0147", name: "ミニリュウ", form: "" },
+        { id: "0148", no: "0148", name: "ハクリュー", form: "" },
+        { id: "0149", no: "0149", name: "カイリュー", form: "" },
+        { id: "0150", no: "0150", name: "ミュウツー", form: "" },
+        { id: "0151", no: "0151", name: "ミュウ", form: "" },
+
+        // ==========================================
+        // 第2世代（ジョウト：No.0152〜0251）
+        // ==========================================
+        { id: "0152", no: "0152", name: "チコリータ", form: "" },
+        { id: "0153", no: "0153", name: "ベイリーフ", form: "" },
+        { id: "0154", no: "0154", name: "メガニウム", form: "" },
+        { id: "0155", no: "0155", name: "ヒノアラシ", form: "" },
+        { id: "0156", no: "0156", name: "マグマラシ", form: "" },
+        { id: "0157", no: "0157", name: "バクフーン", form: "" },
+        { id: "0157_h", no: "0157", name: "バクフーン", form: "ヒスイのすがた" },
+        { id: "0158", no: "0158", name: "ワニノコ", form: "" },
+        { id: "0159", no: "0159", name: "アリゲイツ", form: "" },
+        { id: "0160", no: "0160", name: "オーダイル", form: "" },
+        { id: "0161", no: "0161", name: "オタチ", form: "" },
+        { id: "0162", no: "0162", name: "オオタチ", form: "" },
+        { id: "0163", no: "0163", name: "ホーホー", form: "" },
+        { id: "0164", no: "0164", name: "ヨルノズク", form: "" },
+        { id: "0165", no: "0165", name: "レディバ", form: "" },
+        { id: "0166", no: "0166", name: "レディアン", form: "" },
+        { id: "0167", no: "0167", name: "イトマル", form: "" },
+        { id: "0168", no: "0168", name: "アリアドス", form: "" },
+        { id: "0169", no: "0169", name: "クロバット", form: "" },
+        { id: "0170", no: "0170", name: "チョンチー", form: "" },
+        { id: "0171", no: "0171", name: "ランターン", form: "" },
+        { id: "0172", no: "0172", name: "ピチュー", form: "" },
+        { id: "0173", no: "0173", name: "ピィ", form: "" },
+        { id: "0174", no: "0174", name: "ププリン", form: "" },
+        { id: "0175", no: "0175", name: "トゲピー", form: "" },
+        { id: "0176", no: "0176", name: "トゲチック", form: "" },
+        { id: "0177", no: "0177", name: "ネイティ", form: "" },
+        { id: "0178", no: "0178", name: "ネイティオ", form: "" },
+        { id: "0179", no: "0179", name: "メリープ", form: "" },
+        { id: "0180", no: "0180", name: "モココ", form: "" },
+        { id: "0181", no: "0181", name: "デンリュウ", form: "" },
+        { id: "0182", no: "0182", name: "キレイハナ", form: "" },
+        { id: "0183", no: "0183", name: "マリル", form: "" },
+        { id: "0184", no: "0184", name: "マリルリ", form: "" },
+        { id: "0185", no: "0185", name: "ウソッキー", form: "" },
+        { id: "0186", no: "0186", name: "ニョロトノ", form: "" },
+        { id: "0187", no: "0187", name: "ハネッコ", form: "" },
+        { id: "0188", no: "0188", name: "ポポッコ", form: "" },
+        { id: "0189", no: "0189", name: "ワタッコ", form: "" },
+        { id: "0190", no: "0190", name: "エイパム", form: "" },
+        { id: "0191", no: "0191", name: "ヒマナッツ", form: "" },
+        { id: "0192", no: "0192", name: "キマワリ", form: "" },
+        { id: "0193", no: "0193", name: "ヤンヤンマ", form: "" },
+        { id: "0194", no: "0194", name: "ウパー", form: "" },
+        { id: "0194_p", no: "0194", name: "ウパー", form: "パルデアのすがた" },
+        { id: "0195", no: "0195", name: "ヌオー", form: "" },
+        { id: "0196", no: "0196", name: "エーフィ", form: "" },
+        { id: "0197", no: "0197", name: "ブラッキー", form: "" },
+        { id: "0198", no: "0198", name: "ヤミカラス", form: "" },
+        { id: "0199", no: "0199", name: "ヤドキング", form: "" },
+        { id: "0199_g", no: "0199", name: "ヤドキング", form: "ガラルのすがた" },
+        { id: "0200", no: "0200", name: "ムウマ", form: "" },
+        { id: "0201", no: "0201", name: "アンノーン", form: "" },
+        { id: "0202", no: "0202", name: "ソーナンス", form: "" },
+        { id: "0203", no: "0203", name: "キリンリキ", form: "" },
+        { id: "0204", no: "0204", name: "クヌギダマ", form: "" },
+        { id: "0205", no: "0205", name: "フォレトス", form: "" },
+        { id: "0206", no: "0206", name: "ノコッチ", form: "" },
+        { id: "0207", no: "0207", name: "グライガー", form: "" },
+        { id: "0208", no: "0208", name: "ハガネール", form: "" },
+        { id: "0209", no: "0209", name: "ブルー", form: "" },
+        { id: "0210", no: "0210", name: "グランブル", form: "" },
+        { id: "0211", no: "0211", name: "ハリーセン", form: "" },
+        { id: "0211_h", no: "0211", name: "ハリーセン", form: "ヒスイのすがた" },
+        { id: "0212", no: "0212", name: "ハッサム", form: "" },
+        { id: "0213", no: "0213", name: "ツボツボ", form: "" },
+        { id: "0214", no: "0214", name: "ヘラクロス", form: "" },
+        { id: "0215", no: "0215", name: "ニューラ", form: "" },
+        { id: "0215_h", no: "0215", name: "ニューラ", form: "ヒスイのすがた" },
+        { id: "0216", no: "0216", name: "ヒメグマ", form: "" },
+        { id: "0217", no: "0217", name: "リングマ", form: "" },
+        { id: "0218", no: "0218", name: "マグマッグ", form: "" },
+        { id: "0219", no: "0219", name: "マグカルゴ", form: "" },
+        { id: "0220", no: "0220", name: "ウリムー", form: "" },
+        { id: "0221", no: "0221", name: "イノムー", form: "" },
+        { id: "0222", no: "0222", name: "サニーゴ", form: "" },
+        { id: "0222_g", no: "0222", name: "サニーゴ", form: "ガラルのすがた" },
+        { id: "0223", no: "0223", name: "テッポウオ", form: "" },
+        { id: "0224", no: "0224", name: "オクタン", form: "" },
+        { id: "0225", no: "0225", name: "デリバード", form: "" },
+        { id: "0226", no: "0226", name: "マンタイン", form: "" },
+        { id: "0227", no: "0227", name: "エアームド", form: "" },
+        { id: "0228", no: "0228", name: "デルビル", form: "" },
+        { id: "0229", no: "0229", name: "ヘルガー", form: "" },
+        { id: "0230", no: "0230", name: "キングドラ", form: "" },
+        { id: "0231", no: "0231", name: "ゴマゾウ", form: "" },
+        { id: "0232", no: "0232", name: "ドンファン", form: "" },
+        { id: "0233", no: "0233", name: "ポリゴン2", form: "" },
+        { id: "0234", no: "0234", name: "オドシシ", form: "" },
+        { id: "0235", no: "0235", name: "ドーブル", form: "" },
+        { id: "0236", no: "0236", name: "バルキー", form: "" },
+        { id: "0237", no: "0237", name: "カポエラー", form: "" },
+        { id: "0238", no: "0238", name: "ムチュール", form: "" },
+        { id: "0239", no: "0239", name: "エレキッド", form: "" },
+        { id: "0240", no: "0240", name: "ブビィ", form: "" },
+        { id: "0241", no: "0241", name: "ミルタンク", form: "" },
+        { id: "0242", no: "0242", name: "ハピナス", form: "" },
+        { id: "0243", no: "0243", name: "ライコウ", form: "" },
+        { id: "0244", no: "0244", name: "エンテイ", form: "" },
+        { id: "0245", no: "0245", name: "スイクン", form: "" },
+        { id: "0246", no: "0246", name: "ヨーギラス", form: "" },
+        { id: "0247", no: "0247", name: "サナギラス", form: "" },
+        { id: "0248", no: "0248", name: "バンギラス", form: "" },
+        { id: "0249", no: "0249", name: "ルギア", form: "" },
+        { id: "0250", no: "0250", name: "ホウオウ", form: "" },
+        { id: "0251", no: "0251", name: "セレビィ", form: "" },
+
+        // ==========================================
+        // 第3世代（ホウエン：No.0252〜0386）
+        // ==========================================
+        { id: "0252", no: "0252", name: "キモリ", form: "" },
+        { id: "0253", no: "0253", name: "ジュプトル", form: "" },
+        { id: "0254", no: "0254", name: "ジュカイン", form: "" },
+        { id: "0255", no: "0255", name: "アチャモ", form: "" },
+        { id: "0256", no: "0256", name: "ワカシャモ", form: "" },
+        { id: "0257", no: "0257", name: "バシャーモ", form: "" },
+        { id: "0258", no: "0258", name: "ミズゴロウ", form: "" },
+        { id: "0259", no: "0259", name: "ヌマクロー", form: "" },
+        { id: "0260", no: "0260", name: "ラグラージ", form: "" },
+        { id: "0261", no: "0261", name: "ポチエナ", form: "" },
+        { id: "0262", no: "0262", name: "グラエナ", form: "" },
+        { id: "0263", no: "0263", name: "ジグザグマ", form: "" },
+        { id: "0263_g", no: "0263", name: "ジグザグマ", form: "ガラルのすがた" },
+        { id: "0264", no: "0264", name: "マッスグマ", form: "" },
+        { id: "0264_g", no: "0264", name: "マッスグマ", form: "ガラルのすがた" },
+        { id: "0265", no: "0265", name: "ケムッソ", form: "" },
+        { id: "0266", no: "0266", name: "カラサリス", form: "" },
+        { id: "0267", no: "0267", name: "アゲハント", form: "" },
+        { id: "0268", no: "0268", name: "マユルド", form: "" },
+        { id: "0269", no: "0269", name: "ドクケイル", form: "" },
+        { id: "0270", no: "0270", name: "ハスボー", form: "" },
+        { id: "0271", no: "0271", name: "ハスブレロ", form: "" },
+        { id: "0272", no: "0272", name: "ルンパッパ", form: "" },
+        { id: "0273", no: "0273", name: "タネボー", form: "" },
+        { id: "0274", no: "0274", name: "コノハナ", form: "" },
+        { id: "0275", no: "0275", name: "ダーテング", form: "" },
+        { id: "0276", no: "0276", name: "スバメ", form: "" },
+        { id: "0277", no: "0277", name: "オオスバメ", form: "" },
+        { id: "0278", no: "0278", name: "キャモメ", form: "" },
+        { id: "0279", no: "0279", name: "ペリッパー", form: "" },
+        { id: "0280", no: "0280", name: "ラルトス", form: "" },
+        { id: "0281", no: "0281", name: "キルリア", form: "" },
+        { id: "0282", no: "0282", name: "サーナイト", form: "" },
+        { id: "0283", no: "0283", name: "アメタマ", form: "" },
+        { id: "0284", no: "0284", name: "アメモース", form: "" },
+        { id: "0285", no: "0285", name: "キノココ", form: "" },
+        { id: "0286", no: "0286", name: "キノガッサ", form: "" },
+        { id: "0287", no: "0287", name: "ナマケロ", form: "" },
+        { id: "0288", no: "0288", name: "ヤルキモノ", form: "" },
+        { id: "0289", no: "0289", name: "ケッキング", form: "" },
+        { id: "0290", no: "0290", name: "ツチニン", form: "" },
+        { id: "0291", no: "0291", name: "テッカニン", form: "" },
+        { id: "0292", no: "0292", name: "ヌケニン", form: "" },
+        { id: "0293", no: "0293", name: "ゴニョニョ", form: "" },
+        { id: "0294", no: "0294", name: "ドゴーム", form: "" },
+        { id: "0295", no: "0295", name: "バクオング", form: "" },
+        { id: "0296", no: "0296", name: "マクノシタ", form: "" },
+        { id: "0297", no: "0297", name: "ハリテヤマ", form: "" },
+        { id: "0298", no: "0298", name: "ルリリ", form: "" },
+        { id: "0299", no: "0299", name: "ノズパス", form: "" },
+        { id: "0300", no: "0300", name: "エネコ", form: "" },
+        { id: "0301", no: "0301", name: "エネコロロ", form: "" },
+        { id: "0302", no: "0302", name: "ヤミラミ", form: "" },
+        { id: "0303", no: "0303", name: "クチート", form: "" },
+        { id: "0304", no: "0304", name: "ココドラ", form: "" },
+        { id: "0305", no: "0305", name: "コドラ", form: "" },
+        { id: "0306", no: "0306", name: "ボスゴドラ", form: "" },
+        { id: "0307", no: "0307", name: "アサナン", form: "" },
+        { id: "0308", no: "0308", name: "チャーレム", form: "" },
+        { id: "0309", no: "0309", name: "ラクライ", form: "" },
+        { id: "0310", no: "0310", name: "ライボルト", form: "" },
+        { id: "0311", no: "0311", name: "プラスル", form: "" },
+        { id: "0312", no: "0312", name: "マイナン", form: "" },
+        { id: "0313", no: "0313", name: "バルビート", form: "" },
+        { id: "0314", no: "0314", name: "イルミーゼ", form: "" },
+        { id: "0315", no: "0315", name: "ロゼリア", form: "" },
+        { id: "0316", no: "0316", name: "ゴクリン", form: "" },
+        { id: "0317", no: "0317", name: "マルノーム", form: "" },
+        { id: "0318", no: "0318", name: "キバニア", form: "" },
+        { id: "0319", no: "0319", name: "サメハダー", form: "" },
+        { id: "0320", no: "0320", name: "ホエルコ", form: "" },
+        { id: "0321", no: "0321", name: "ホエルオー", form: "" },
+        { id: "0322", no: "0322", name: "ドンメル", form: "" },
+        { id: "0323", no: "0323", name: "バクーダ", form: "" },
+        { id: "0324", no: "0324", name: "コータス", form: "" },
+        { id: "0325", no: "0325", name: "バネブー", form: "" },
+        { id: "0326", no: "0326", name: "ブーピッグ", form: "" },
+        { id: "0327", no: "0327", name: "パッチール", form: "" },
+        { id: "0328", no: "0328", name: "ナックラー", form: "" },
+        { id: "0329", no: "0329", name: "ビブラーバ", form: "" },
+        { id: "0330", no: "0330", name: "フライゴン", form: "" },
+        { id: "0331", no: "0331", name: "サボネア", form: "" },
+        { id: "0332", no: "0332", name: "ノクタス", form: "" },
+        { id: "0333", no: "0333", name: "チルット", form: "" },
+        { id: "0334", no: "0334", name: "チルタリス", form: "" },
+        { id: "0335", no: "0335", name: "ザングース", form: "" },
+        { id: "0336", no: "0336", name: "ハブネーク", form: "" },
+        { id: "0337", no: "0337", name: "ルナトーン", form: "" },
+        { id: "0338", no: "0338", name: "ソルロック", form: "" },
+        { id: "0339", no: "0339", name: "ドジョッチ", form: "" },
+        { id: "0340", no: "0340", name: "ナマズン", form: "" },
+        { id: "0341", no: "0341", name: "ヘイガニ", form: "" },
+        { id: "0342", no: "0342", name: "シザリガー", form: "" },
+        { id: "0343", no: "0343", name: "ヤジロン", form: "" },
+        { id: "0344", no: "0344", name: "ネンドール", form: "" },
+        { id: "0345", no: "0345", name: "リリーラ", form: "" },
+        { id: "0346", no: "0346", name: "ユレイドル", form: "" },
+        { id: "0347", no: "0347", name: "アノプス", form: "" },
+        { id: "0348", no: "0348", name: "アーマルド", form: "" },
+        { id: "0349", no: "0349", name: "ヒンバス", form: "" },
+        { id: "0350", no: "0350", name: "ミロカロス", form: "" },
+        { id: "0351", no: "0351", name: "ポワルン", form: "" },
+        { id: "0352", no: "0352", name: "カクレオン", form: "" },
+        { id: "0353", no: "0353", name: "カゲボウズ", form: "" },
+        { id: "0354", no: "0354", name: "ジュペッタ", form: "" },
+        { id: "0355", no: "0355", name: "ヨマワル", form: "" },
+        { id: "0356", no: "0356", name: "サマヨール", form: "" },
+        { id: "0357", no: "0357", name: "トロピウス", form: "" },
+        { id: "0358", no: "0358", name: "チリーン", form: "" },
+        { id: "0359", no: "0359", name: "アブソル", form: "" },
+        { id: "0360", no: "0360", name: "ソーナノ", form: "" },
+        { id: "0361", no: "0361", name: "ユキワラシ", form: "" },
+        { id: "0362", no: "0362", name: "オニゴーリ", form: "" },
+        { id: "0363", no: "0363", name: "タマザラシ", form: "" },
+        { id: "0364", no: "0364", name: "トドグラー", form: "" },
+        { id: "0365", no: "0365", name: "トドゼルガ", form: "" },
+        { id: "0366", no: "0366", name: "パールル", form: "" },
+        { id: "0367", no: "0367", name: "ハンテール", form: "" },
+        { id: "0368", no: "0368", name: "サクラビス", form: "" },
+        { id: "0369", no: "0369", name: "ジーランス", form: "" },
+        { id: "0370", no: "0370", name: "ラブカス", form: "" },
+        { id: "0371", no: "0371", name: "タツベイ", form: "" },
+        { id: "0372", no: "0372", name: "コモルー", form: "" },
+        { id: "0373", no: "0373", name: "ボーマンダ", form: "" },
+        { id: "0374", no: "0374", name: "ダンバル", form: "" },
+        { id: "0375", no: "0375", name: "メタング", form: "" },
+        { id: "0376", no: "0376", name: "メタグロス", form: "" },
+        { id: "0377", no: "0377", name: "レジロック", form: "" },
+        { id: "0378", no: "0378", name: "レジアイス", form: "" },
+        { id: "0379", no: "0379", name: "レジスチル", form: "" },
+        { id: "0380", no: "0380", name: "ラティアス", form: "" },
+        { id: "0381", no: "0381", name: "ラティオス", form: "" },
+        { id: "0382", no: "0382", name: "カイオーガ", form: "" },
+        { id: "0383", no: "0383", name: "グラードン", form: "" },
+        { id: "0384", no: "0384", name: "レックウザ", form: "" },
+        { id: "0385", no: "0385", name: "ジラーチ", form: "" },
+        { id: "0386", no: "0386", name: "デオキシス", form: "ノーマルフォルム" },
+        { id: "0386_a", no: "0386", name: "デオキシス", form: "アタックフォルム" },
+        { id: "0386_d", no: "0386", name: "デオキシス", form: "ディフェンスフォルム" },
+        { id: "0386_s", no: "0386", name: "デオキシス", form: "スピードフォルム" },
+	// ==========================================
+        // 第4世代（シンオウ：No.0387〜0493）
+        // ==========================================
+        { id: "0387", no: "0387", name: "ナエトル", form: "" },
+        { id: "0388", no: "0388", name: "ハヤシガメ", form: "" },
+        { id: "0389", no: "0389", name: "ドダイトス", form: "" },
+        { id: "0390", no: "0390", name: "ヒコザル", form: "" },
+        { id: "0391", no: "0391", name: "モウカザル", form: "" },
+        { id: "0392", no: "0392", name: "ゴウカザル", form: "" },
+        { id: "0393", no: "0393", name: "ポッチャマ", form: "" },
+        { id: "0394", no: "0394", name: "ポッタイシ", form: "" },
+        { id: "0395", no: "0395", name: "エンペルト", form: "" },
+        { id: "0396", no: "0396", name: "ムックル", form: "" },
+        { id: "0397", no: "0397", name: "ムクバード", form: "" },
+        { id: "0398", no: "0398", name: "ムクホーク", form: "" },
+        { id: "0399", no: "0399", name: "ビッパ", form: "" },
+        { id: "0400", no: "0400", name: "ビーダル", form: "" },
+        { id: "0401", no: "0401", name: "コロボーシ", form: "" },
+        { id: "0402", no: "0402", name: "コロトック", form: "" },
+        { id: "0403", no: "0403", name: "コリンク", form: "" },
+        { id: "0404", no: "0404", name: "ルクシオ", form: "" },
+        { id: "0405", no: "0405", name: "レントラー", form: "" },
+        { id: "0406", no: "0406", name: "スボミー", form: "" },
+        { id: "0407", no: "0407", name: "ロズレイド", form: "" },
+        { id: "0408", no: "0408", name: "ズガイドス", form: "" },
+        { id: "0409", no: "0409", name: "ラムパルド", form: "" },
+        { id: "0410", no: "0410", name: "タテトプス", form: "" },
+        { id: "0411", no: "0411", name: "トリデプス", form: "" },
+        { id: "0412_p", no: "0412", name: "ミノムッチ", form: "くさきのミノ" },
+        { id: "0412_s", no: "0412", name: "ミノムッチ", form: "すなちのミノ" },
+        { id: "0412_t", no: "0412", name: "ミノムッチ", form: "ゴミのミノ" },
+        { id: "0413_p", no: "0413", name: "ミノマダム", form: "くさきのミノ" },
+        { id: "0413_s", no: "0413", name: "ミノマダム", form: "すなちのミノ" },
+        { id: "0413_t", no: "0413", name: "ミノマダム", form: "ゴミのミノ" },
+        { id: "0414", no: "0414", name: "ガーメイル", form: "" },
+        { id: "0415", no: "0415", name: "ミツハニー", form: "" },
+        { id: "0416", no: "0416", name: "ビークイン", form: "" },
+        { id: "0417", no: "0417", name: "パチリス", form: "" },
+        { id: "0418", no: "0418", name: "ブイゼル", form: "" },
+        { id: "0419", no: "0419", name: "フローゼル", form: "" },
+        { id: "0420", no: "0420", name: "チェリンボ", form: "" },
+        { id: "0421", no: "0421", name: "チェリム", form: "" },
+        { id: "0422_w", no: "0422", name: "カラナクシ", form: "にしのうみ" },
+        { id: "0422_e", no: "0422", name: "カラナクシ", form: "ひがしのうみ" },
+        { id: "0423_w", no: "0423", name: "トリトドン", form: "にしのうみ" },
+        { id: "0423_e", no: "0423", name: "トリトドン", form: "ひがしのうみ" },
+        { id: "0424", no: "0424", name: "エテボース", form: "" },
+        { id: "0425", no: "0425", name: "フワンテ", form: "" },
+        { id: "0426", no: "0426", name: "フワライド", form: "" },
+        { id: "0427", no: "0427", name: "ミミロル", form: "" },
+        { id: "0428", no: "0428", name: "ミミロップ", form: "" },
+        { id: "0429", no: "0429", name: "ムウマージ", form: "" },
+        { id: "0430", no: "0430", name: "ドンカラス", form: "" },
+        { id: "0431", no: "0431", name: "ニャルマー", form: "" },
+        { id: "0432", no: "0432", name: "ブニャット", form: "" },
+        { id: "0433", no: "0433", name: "リーシャン", form: "" },
+        { id: "0434", no: "0434", name: "スカンプー", form: "" },
+        { id: "0435", no: "0435", name: "スカタンク", form: "" },
+        { id: "0436", no: "0436", name: "ドーミラー", form: "" },
+        { id: "0437", no: "0437", name: "ドータクン", form: "" },
+        { id: "0438", no: "0438", name: "ウソハチ", form: "" },
+        { id: "0439", no: "0439", name: "マネネ", form: "" },
+        { id: "0440", no: "0440", name: "ピンプク", form: "" },
+        { id: "0441", no: "0441", name: "ペラップ", form: "" },
+        { id: "0442", no: "0442", name: "ミカルゲ", form: "" },
+        { id: "0443", no: "0443", name: "フカマル", form: "" },
+        { id: "0444", no: "0444", name: "ガバイト", form: "" },
+        { id: "0445", no: "0445", name: "ガブリアス", form: "" },
+        { id: "0446", no: "0446", name: "ゴンベ", form: "" },
+        { id: "0447", no: "0447", name: "リオル", form: "" },
+        { id: "0448", no: "0448", name: "ルカリオ", form: "" },
+        { id: "0449", no: "0449", name: "ヒポポタス", form: "" },
+        { id: "0450", no: "0450", name: "カバルドン", form: "" },
+        { id: "0451", no: "0451", name: "スコルピ", form: "" },
+        { id: "0452", no: "0452", name: "ドラピオン", form: "" },
+        { id: "0453", no: "0453", name: "グレッグル", form: "" },
+        { id: "0454", no: "0454", name: "ドクロッグ", form: "" },
+        { id: "0455", no: "0455", name: "マスキッパ", form: "" },
+        { id: "0456", no: "0456", name: "ケイコウオ", form: "" },
+        { id: "0457", no: "0457", name: "ネオラント", form: "" },
+        { id: "0458", no: "0458", name: "タマンタ", form: "" },
+        { id: "0459", no: "0459", name: "ユキカブリ", form: "" },
+        { id: "0460", no: "0460", name: "ユキノオー", form: "" },
+        { id: "0461", no: "0461", name: "マニューラ", form: "" },
+        { id: "0462", no: "0462", name: "ジバコイル", form: "" },
+        { id: "0463", no: "0463", name: "ベロベルト", form: "" },
+        { id: "0464", no: "0464", name: "ドサイドン", form: "" },
+        { id: "0465", no: "0465", name: "モジャンボ", form: "" },
+        { id: "0466", no: "0466", name: "エレキブル", form: "" },
+        { id: "0467", no: "0467", name: "ブーバーン", form: "" },
+        { id: "0468", no: "0468", name: "トゲキッス", form: "" },
+        { id: "0469", no: "0469", name: "メガヤンマ", form: "" },
+        { id: "0470", no: "0470", name: "リーフィア", form: "" },
+        { id: "0471", no: "0471", name: "グレイシア", form: "" },
+        { id: "0472", no: "0472", name: "グライオン", form: "" },
+        { id: "0473", no: "0473", name: "マンムー", form: "" },
+        { id: "0474", no: "0474", name: "ポリゴンZ", form: "" },
+        { id: "0475", no: "0475", name: "エルレイド", form: "" },
+        { id: "0476", no: "0476", name: "ダイノーズ", form: "" },
+        { id: "0477", no: "0477", name: "ヨノワール", form: "" },
+        { id: "0478", no: "0478", name: "ユキメノコ", form: "" },
+        { id: "0479", no: "0479", name: "ロトム", form: "" },
+        { id: "0479_h", no: "0479", name: "ロトム", form: "ヒートロトム" },
+        { id: "0479_w", no: "0479", name: "ロトム", form: "ウォッシュロトム" },
+        { id: "0479_f", no: "0479", name: "ロトム", form: "フロストロトム" },
+        { id: "0479_s", no: "0479", name: "ロトム", form: "スピンロトム" },
+        { id: "0479_m", no: "0479", name: "ロトム", form: "カットロトム" },
+        { id: "0480", no: "0480", name: "ユクシー", form: "" },
+        { id: "0481", no: "0481", name: "エムリット", form: "" },
+        { id: "0482", no: "0482", name: "アグノム", form: "" },
+        { id: "0483", no: "0483", name: "ディアルガ", form: "" },
+        { id: "0483_o", no: "0483", name: "ディアルガ", form: "オリジンフォルム" },
+        { id: "0484", no: "0484", name: "パルキア", form: "" },
+        { id: "0484_o", no: "0484", name: "パルキア", form: "オリジンフォルム" },
+        { id: "0485", no: "0485", name: "ヒードラン", form: "" },
+        { id: "0486", no: "0486", name: "レジギガス", form: "" },
+        { id: "0487", no: "0487", name: "ギラティナ", form: "アナザーフォルム" },
+        { id: "0487_o", no: "0487", name: "ギラティナ", form: "オリジンフォルム" },
+        { id: "0488", no: "0488", name: "クレセリア", form: "" },
+        { id: "0489", no: "0489", name: "フィオネ", form: "" },
+        { id: "0490", no: "0490", name: "マナフィ", form: "" },
+        { id: "0491", no: "0491", name: "ダークライ", form: "" },
+        { id: "0492", no: "0492", name: "シェイミ", form: "ランドフォルム" },
+        { id: "0492_s", no: "0492", name: "シェイミ", form: "スカイフォルム" },
+        { id: "0493", no: "0493", name: "アルセウス", form: "" },
+
+        // ==========================================
+        // 第5世代（イッシュ：No.0494〜0649）
+        // ==========================================
+        { id: "0494", no: "0494", name: "ビクティニ", form: "" },
+        { id: "0495", no: "0495", name: "ツタージャ", form: "" },
+        { id: "0496", no: "0496", name: "ジャノビー", form: "" },
+        { id: "0497", no: "0497", name: "ジャローダ", form: "" },
+        { id: "0498", no: "0498", name: "ポカブ", form: "" },
+        { id: "0499", no: "0499", name: "チャオブー", form: "" },
+        { id: "0500", no: "0500", name: "エンブオー", form: "" },
+        { id: "0501", no: "0501", name: "ミジュマル", form: "" },
+        { id: "0502", no: "0502", name: "フタチマル", form: "" },
+        { id: "0503", no: "0503", name: "ダイケンキ", form: "" },
+        { id: "0503_h", no: "0503", name: "ダイケンキ", form: "ヒスイのすがた" },
+        { id: "0504", no: "0504", name: "ミネズミ", form: "" },
+        { id: "0505", no: "0505", name: "ミルホッグ", form: "" },
+        { id: "0506", no: "0506", name: "ヨーテリー", form: "" },
+        { id: "0507", no: "0507", name: "ハーデリア", form: "" },
+        { id: "0508", no: "0508", name: "ムーランド", form: "" },
+        { id: "0509", no: "0509", name: "チョロネコ", form: "" },
+        { id: "0510", no: "0510", name: "レパルダス", form: "" },
+        { id: "0511", no: "0511", name: "ヤナップ", form: "" },
+        { id: "0512", no: "0512", name: "ヤナッキー", form: "" },
+        { id: "0513", no: "0513", name: "バオップ", form: "" },
+        { id: "0514", no: "0514", name: "バオッキー", form: "" },
+        { id: "0515", no: "0515", name: "ヒヤップ", form: "" },
+        { id: "0516", no: "0516", name: "ヒヤッキー", form: "" },
+        { id: "0517", no: "0517", name: "ムンナ", form: "" },
+        { id: "0518", no: "0518", name: "ムシャーナ", form: "" },
+        { id: "0519", no: "0519", name: "マメパト", form: "" },
+        { id: "0520", no: "0520", name: "ハトーボー", form: "" },
+        { id: "0521", no: "0521", name: "ケンホロウ", form: "" },
+        { id: "0522", no: "0522", name: "シママ", form: "" },
+        { id: "0523", no: "0523", name: "ゼブライカ", form: "" },
+        { id: "0524", no: "0524", name: "ダンゴロ", form: "" },
+        { id: "0525", no: "0525", name: "ガントル", form: "" },
+        { id: "0526", no: "0526", name: "ギガイアス", form: "" },
+        { id: "0527", no: "0527", name: "コロモリ", form: "" },
+        { id: "0528", no: "0528", name: "ココロモリ", form: "" },
+        { id: "0529", no: "0529", name: "モグリュー", form: "" },
+        { id: "0530", no: "0530", name: "ドリュウズ", form: "" },
+        { id: "0531", no: "0531", name: "タブンネ", form: "" },
+        { id: "0532", no: "0532", name: "ドッコラー", form: "" },
+        { id: "0533", no: "0533", name: "ドテッコツ", form: "" },
+        { id: "0534", no: "0534", name: "ローブシン", form: "" },
+        { id: "0535", no: "0535", name: "オタマロ", form: "" },
+        { id: "0536", no: "0536", name: "ガマガル", form: "" },
+        { id: "0537", no: "0537", name: "ガマゲロゲ", form: "" },
+        { id: "0538", no: "0538", name: "ナゲキ", form: "" },
+        { id: "0539", no: "0539", name: "ダゲキ", form: "" },
+        { id: "0540", no: "0540", name: "クルミル", form: "" },
+        { id: "0541", no: "0541", name: "クルマユ", form: "" },
+        { id: "0542", no: "0542", name: "ハハコモリ", form: "" },
+        { id: "0543", no: "0543", name: "フシデ", form: "" },
+        { id: "0544", no: "0544", name: "ホイーガ", form: "" },
+        { id: "0545", no: "0545", name: "ペンドラー", form: "" },
+        { id: "0546", no: "0546", name: "モンメン", form: "" },
+        { id: "0547", no: "0547", name: "エルフーン", form: "" },
+        { id: "0548", no: "0548", name: "チュリネ", form: "" },
+        { id: "0549", no: "0549", name: "ドレディア", form: "" },
+        { id: "0549_h", no: "0549", name: "ドレディア", form: "ヒスイのすがた" },
+        { id: "0550_r", no: "0550", name: "バスラオ", form: "あかすじのすがた" },
+        { id: "0550_b", no: "0550", name: "バスラオ", form: "あおすじのすがた" },
+        { id: "0550_w", no: "0550", name: "バスラオ", form: "しろすじのすがた" },
+        { id: "0551", no: "0551", name: "メグロコ", form: "" },
+        { id: "0552", no: "0552", name: "ワルビル", form: "" },
+        { id: "0553", no: "0553", name: "ワルビアル", form: "" },
+        { id: "0554", no: "0554", name: "ダルマッカ", form: "" },
+        { id: "0554_g", no: "0554", name: "ダルマッカ", form: "ガラルのすがた" },
+        { id: "0555", no: "0555", name: "ヒヒダルマ", form: "" },
+        { id: "0555_g", no: "0555", name: "ヒヒダルマ", form: "ガラルのすがた" },
+        { id: "0556", no: "0556", name: "マラカッチ", form: "" },
+        { id: "0557", no: "0557", name: "イシズマイ", form: "" },
+        { id: "0558", no: "0558", name: "イワパレス", form: "" },
+        { id: "0559", no: "0559", name: "ズルッグ", form: "" },
+        { id: "0560", no: "0560", name: "ズルズキン", form: "" },
+        { id: "0561", no: "0561", name: "シンボラー", form: "" },
+        { id: "0562", no: "0562", name: "デスマス", form: "" },
+        { id: "0562_g", no: "0562", name: "デスマス", form: "ガラルのすがた" },
+        { id: "0563", no: "0563", name: "デスカーン", form: "" },
+        { id: "0564", no: "0564", name: "プロトーガ", form: "" },
+        { id: "0565", no: "0565", name: "アバゴーラ", form: "" },
+        { id: "0566", no: "0566", name: "アーケン", form: "" },
+        { id: "0567", no: "0567", name: "アーケオス", form: "" },
+        { id: "0568", no: "0568", name: "ヤブクロン", form: "" },
+        { id: "0569", no: "0569", name: "ダストダス", form: "" },
+        { id: "0570", no: "0570", name: "ゾロア", form: "" },
+        { id: "0570_h", no: "0570", name: "ゾロア", form: "ヒスイのすがた" },
+        { id: "0571", no: "0571", name: "ゾロアーク", form: "" },
+        { id: "0571_h", no: "0571", name: "ゾロアーク", form: "ヒスイのすがた" },
+        { id: "0572", no: "0572", name: "チラーミィ", form: "" },
+        { id: "0573", no: "0573", name: "チラチーノ", form: "" },
+        { id: "0574", no: "0574", name: "ゴチム", form: "" },
+        { id: "0575", no: "0575", name: "ゴチミル", form: "" },
+        { id: "0576", no: "0576", name: "ゴチルゼル", form: "" },
+        { id: "0577", no: "0577", name: "ユニラン", form: "" },
+        { id: "0578", no: "0578", name: "ダブラン", form: "" },
+        { id: "0579", no: "0579", name: "ランクルス", form: "" },
+        { id: "0580", no: "0580", name: "コアルヒー", form: "" },
+        { id: "0581", no: "0581", name: "スワンナ", form: "" },
+        { id: "0582", no: "0582", name: "バニプッチ", form: "" },
+        { id: "0583", no: "0583", name: "バニリッチ", form: "" },
+        { id: "0584", no: "0584", name: "バイバニラ", form: "" },
+        { id: "0585_sp", no: "0585", name: "シキジカ", form: "はるのすがた" },
+        { id: "0585_su", no: "0585", name: "シキジカ", form: "なつのすがた" },
+        { id: "0585_au", no: "0585", name: "シキジカ", form: "あきのすがた" },
+        { id: "0585_wi", no: "0585", name: "シキジカ", form: "ふゆのすがた" },
+        { id: "0586_sp", no: "0586", name: "メブキジカ", form: "はるのすがた" },
+        { id: "0586_su", no: "0586", name: "メブキジカ", form: "なつのすがた" },
+        { id: "0586_au", no: "0586", name: "メブキジカ", form: "あきのすがた" },
+        { id: "0586_wi", no: "0586", name: "メブキジカ", form: "ふゆのすがた" },
+        { id: "0587", no: "0587", name: "エモンガ", form: "" },
+        { id: "0588", no: "0588", name: "カブルモ", form: "" },
+        { id: "0589", no: "0589", name: "シュバルゴ", form: "" },
+        { id: "0590", no: "0590", name: "タマゲタケ", form: "" },
+        { id: "0591", no: "0591", name: "モロバレル", form: "" },
+        { id: "0592", no: "0592", name: "プルリル", form: "" },
+        { id: "0593", no: "0593", name: "ブルンゲル", form: "" },
+        { id: "0594", no: "0594", name: "ママンボウ", form: "" },
+        { id: "0595", no: "0595", name: "バチュル", form: "" },
+        { id: "0596", no: "0596", name: "デンチュラ", form: "" },
+        { id: "0597", no: "0597", name: "テッシード", form: "" },
+        { id: "0598", no: "0598", name: "ナットレイ", form: "" },
+        { id: "0599", no: "0599", name: "ギアル", form: "" },
+        { id: "0600", no: "0600", name: "ギギアル", form: "" },
+        { id: "0601", no: "0601", name: "ギギギアル", form: "" },
+        { id: "0602", no: "0602", name: "シビシラス", form: "" },
+        { id: "0603", no: "0603", name: "シビビール", form: "" },
+        { id: "0604", no: "0604", name: "シビルドン", form: "" },
+        { id: "0605", no: "0605", name: "リグレー", form: "" },
+        { id: "0606", no: "0606", name: "オーベム", form: "" },
+        { id: "0607", no: "0607", name: "ヒトモシ", form: "" },
+        { id: "0608", no: "0608", name: "ランプラー", form: "" },
+        { id: "0609", no: "0609", name: "シャンデラ", form: "" },
+        { id: "0610", no: "0610", name: "キバゴ", form: "" },
+        { id: "0611", no: "0611", name: "オノンド", form: "" },
+        { id: "0612", no: "0612", name: "オノノクス", form: "" },
+        { id: "0613", no: "0613", name: "クマシュン", form: "" },
+        { id: "0614", no: "0614", name: "ツンベアー", form: "" },
+        { id: "0615", no: "0615", name: "フリージオ", form: "" },
+        { id: "0616", no: "0616", name: "チョボマキ", form: "" },
+        { id: "0617", no: "0617", name: "アギルダー", form: "" },
+        { id: "0618", no: "0618", name: "マッギョ", form: "" },
+        { id: "0618_g", no: "0618", name: "マッギョ", form: "ガラルのすがた" },
+        { id: "0619", no: "0619", name: "コジョフー", form: "" },
+        { id: "0620", no: "0620", name: "コジョンド", form: "" },
+        { id: "0621", no: "0621", name: "クリムガン", form: "" },
+        { id: "0622", no: "0622", name: "ゴビット", form: "" },
+        { id: "0623", no: "0623", name: "ゴルーグ", form: "" },
+        { id: "0624", no: "0624", name: "コマタナ", form: "" },
+        { id: "0625", no: "0625", name: "キリキザン", form: "" },
+        { id: "0626", no: "0626", name: "バッフロン", form: "" },
+        { id: "0627", no: "0627", name: "ワシボン", form: "" },
+        { id: "0628", no: "0628", name: "ウォーグル", form: "" },
+        { id: "0628_h", no: "0628", name: "ウォーグル", form: "ヒスイのすがた" },
+        { id: "0629", no: "0629", name: "バルチャイ", form: "" },
+        { id: "0630", no: "0630", name: "バルジーナ", form: "" },
+        { id: "0631", no: "0631", name: "クイタラン", form: "" },
+        { id: "0632", no: "0632", name: "アイアント", form: "" },
+        { id: "0633", no: "0633", name: "モノズ", form: "" },
+        { id: "0634", no: "0634", name: "ジヘッド", form: "" },
+        { id: "0635", no: "0635", name: "サザンドラ", form: "" },
+        { id: "0636", no: "0636", name: "メラルバ", form: "" },
+        { id: "0637", no: "0637", name: "ウルガモス", form: "" },
+        { id: "0638", no: "0638", name: "コバルオン", form: "" },
+        { id: "0639", no: "0639", name: "テラキオン", form: "" },
+        { id: "0640", no: "0640", name: "ビリジオン", form: "" },
+        { id: "0641", no: "0641", name: "トルネロス", form: "けしんフォルム" },
+        { id: "0641_t", no: "0641", name: "トルネロス", form: "れいじゅうフォルム" },
+        { id: "0642", no: "0642", name: "ボルトロス", form: "けしんフォルム" },
+        { id: "0642_t", no: "0642", name: "ボルトロス", form: "れいじゅうフォルム" },
+        { id: "0643", no: "0643", name: "レシラム", form: "" },
+        { id: "0644", no: "0644", name: "ゼクロム", form: "" },
+        { id: "0645", no: "0645", name: "ランドロス", form: "けしんフォルム" },
+        { id: "0645_t", no: "0645", name: "ランドロス", form: "れいじゅうフォルム" },
+        { id: "0646", no: "0646", name: "キュレム", form: "" },
+        { id: "0646_w", no: "0646", name: "キュレム", form: "ホワイトキュレム" },
+        { id: "0646_b", no: "0646", name: "キュレム", form: "ブラックキュレム" },
+        { id: "0647", no: "0647", name: "ケルディオ", form: "いつものすがた" },
+        { id: "0647_r", no: "0647", name: "ケルディオ", form: "かくごのすがた" },
+        { id: "0648", no: "0648", name: "メロエッタ", form: "" },
+        { id: "0649", no: "0649", name: "ゲノセクト", form: "" },
+
+        // ==========================================
+        // 第6世代（カロス：No.0650〜0721）
+        // ==========================================
+        { id: "0650", no: "0650", name: "ハリマロン", form: "" },
+        { id: "0651", no: "0651", name: "ハリボーグ", form: "" },
+        { id: "0652", no: "0652", name: "ブリガロン", form: "" },
+        { id: "0653", no: "0653", name: "フォッコ", form: "" },
+        { id: "0654", no: "0654", name: "テールナー", form: "" },
+        { id: "0655", no: "0655", name: "マフォクシー", form: "" },
+        { id: "0656", no: "0656", name: "ケロマツ", form: "" },
+        { id: "0657", no: "0657", name: "ゲコガシラ", form: "" },
+        { id: "0658", no: "0658", name: "ゲッコウガ", form: "" },
+        { id: "0659", no: "0659", name: "ホルビー", form: "" },
+        { id: "0660", no: "0660", name: "ホルード", form: "" },
+        { id: "0661", no: "0661", name: "ヤヤコマ", form: "" },
+        { id: "0662", no: "0662", name: "ヒノヤコマ", form: "" },
+        { id: "0663", no: "0663", name: "ファイアロー", form: "" },
+        { id: "0664", no: "0664", name: "コフキムシ", form: "" },
+        { id: "0665", no: "0665", name: "コフーライ", form: "" },
+        { id: "0666", no: "0666", name: "ビビヨン", form: "" },
+        { id: "0667", no: "0667", name: "シシコ", form: "" },
+        { id: "0668", no: "0668", name: "カエンジシ", form: "" },
+        { id: "0669_r", no: "0669", name: "フラベベ", form: "あかいはな" },
+        { id: "0669_y", no: "0669", name: "フラベベ", form: "きいろのはな" },
+        { id: "0669_o", no: "0669", name: "フラベベ", form: "オレンジいろのはな" },
+        { id: "0669_b", no: "0669", name: "フラベベ", form: "あおいはな" },
+        { id: "0669_w", no: "0669", name: "フラベベ", form: "しろいはな" },
+        { id: "0670_r", no: "0670", name: "フラエッテ", form: "あかいはな" },
+        { id: "0670_y", no: "0670", name: "フラエッテ", form: "きいろのはな" },
+        { id: "0670_o", no: "0670", name: "フラエッテ", form: "オレンジいろのはな" },
+        { id: "0670_b", no: "0670", name: "フラエッテ", form: "あおいはな" },
+        { id: "0670_w", no: "0670", name: "フラエッテ", form: "しろいはな" },
+        { id: "0671_r", no: "0671", name: "フラージェス", form: "あかいはな" },
+        { id: "0671_y", no: "0671", name: "フラージェス", form: "きいろのはな" },
+        { id: "0671_o", no: "0671", name: "フラージェス", form: "オレンジいろのはな" },
+        { id: "0671_b", no: "0671", name: "フラージェス", form: "あおいはな" },
+        { id: "0671_w", no: "0671", name: "フラージェス", form: "しろいはな" },
+        { id: "0672", no: "0672", name: "メェークル", form: "" },
+        { id: "0673", no: "0673", name: "ゴーゴート", form: "" },
+        { id: "0674", no: "0674", name: "ヤンチャム", form: "" },
+        { id: "0675", no: "0675", name: "ゴロンダ", form: "" },
+        { id: "0676", no: "0676", name: "トリミアン", form: "やせいのすがた" },
+        { id: "0676_h", no: "0676", name: "トリミアン", form: "ハートカット" },
+        { id: "0676_s", no: "0676", name: "トリミアン", form: "スターカット" },
+        { id: "0676_d", no: "0676", name: "トリミアン", form: "ダイヤカット" },
+        { id: "0676_l", no: "0676", name: "トリミアン", form: "レディカット" },
+        { id: "0676_m", no: "0676", name: "トリミアン", form: "マダムカット" },
+        { id: "0676_g", no: "0676", name: "トリミアン", form: "ジェントルカット" },
+        { id: "0676_q", no: "0676", name: "トリミアン", form: "クイーンカット" },
+        { id: "0676_k", no: "0676", name: "トリミアン", form: "カブキカット" },
+        { id: "0676_p", no: "0676", name: "トリミアン", form: "キングダムカット" },
+        { id: "0677", no: "0677", name: "ニャスパー", form: "" },
+        { id: "0678", no: "0678", name: "ニャオニクス", form: "" },
+        { id: "0679", no: "0679", name: "ヒトツキ", form: "" },
+        { id: "0680", no: "0680", name: "ニダンギル", form: "" },
+        { id: "0681", no: "0681", name: "ギルガルド", form: "" },
+        { id: "0682", no: "0682", name: "シュシュプ", form: "" },
+        { id: "0683", no: "0683", name: "フレフワン", form: "" },
+        { id: "0684", no: "0684", name: "ペロッパフ", form: "" },
+        { id: "0685", no: "0685", name: "ペロリーム", form: "" },
+        { id: "0686", no: "0686", name: "マーイーカ", form: "" },
+        { id: "0687", no: "0687", name: "カラマネロ", form: "" },
+        { id: "0688", no: "0688", name: "カメテテ", form: "" },
+        { id: "0689", no: "0689", name: "ガメノデス", form: "" },
+        { id: "0690", no: "0690", name: "クズモー", form: "" },
+        { id: "0691", no: "0691", name: "ドラミドロ", form: "" },
+        { id: "0692", no: "0692", name: "ウデッポウ", form: "" },
+        { id: "0693", no: "0693", name: "ブロスター", form: "" },
+        { id: "0694", no: "0694", name: "エリキテル", form: "" },
+        { id: "0695", no: "0695", name: "エレザード", form: "" },
+        { id: "0696", no: "0696", name: "チゴラス", form: "" },
+        { id: "0697", no: "0697", name: "ガチゴラス", form: "" },
+        { id: "0698", no: "0698", name: "アマルス", form: "" },
+        { id: "0699", no: "0699", name: "アマルルガ", form: "" },
+        { id: "0700", no: "0700", name: "ニンフィア", form: "" },
+        { id: "0701", no: "0701", name: "ルチャブル", form: "" },
+        { id: "0702", no: "0702", name: "デデンネ", form: "" },
+        { id: "0703", no: "0703", name: "メレシー", form: "" },
+        { id: "0704", no: "0704", name: "ヌメラ", form: "" },
+        { id: "0705", no: "0705", name: "ヌメイル", form: "" },
+        { id: "0705_h", no: "0705", name: "ヌメイル", form: "ヒスイのすがた" },
+        { id: "0706", no: "0706", name: "ヌメルゴン", form: "" },
+        { id: "0706_h", no: "0706", name: "ヌメルゴン", form: "ヒスイのすがた" },
+        { id: "0707", no: "0707", name: "クレッフィ", form: "" },
+        { id: "0708", no: "0708", name: "ボクレー", form: "" },
+        { id: "0709", no: "0709", name: "オーロット", form: "" },
+        { id: "0710_s", no: "0710", name: "バケッチャ", form: "ちいさいサイズ" },
+        { id: "0710_m", no: "0710", name: "バケッチャ", form: "ふつうのサイズ" },
+        { id: "0710_l", no: "0710", name: "バケッチャ", form: "おおきいサイズ" },
+        { id: "0710_xl", no: "0710", name: "バケッチャ", form: "とくだいサイズ" },
+        { id: "0711_s", no: "0711", name: "パンプジン", form: "ちいさいサイズ" },
+        { id: "0711_m", no: "0711", name: "パンプジン", form: "ふつうのサイズ" },
+        { id: "0711_l", no: "0711", name: "パンプジン", form: "おおきいサイズ" },
+        { id: "0711_xl", no: "0711", name: "パンプジン", form: "とくだいサイズ" },
+        { id: "0712", no: "0712", name: "カチコール", form: "" },
+        { id: "0713", no: "0713", name: "クレベース", form: "" },
+        { id: "0713_h", no: "0713", name: "クレベース", form: "ヒスイのすがた" },
+        { id: "0714", no: "0714", name: "オンバット", form: "" },
+        { id: "0715", no: "0715", name: "オンバーン", form: "" },
+        { id: "0716", no: "0716", name: "ゼルネアス", form: "" },
+        { id: "0717", no: "0717", name: "イベルタル", form: "" },
+        { id: "0718_10", no: "0718", name: "ジガルデ", form: "10%フォルム" },
+        { id: "0718_50", no: "0718", name: "ジガルデ", form: "50%フォルム" },
+        { id: "0719", no: "0719", name: "ディアンシー", form: "" },
+        { id: "0720", no: "0720", name: "フーパ", form: "いましめられしフーパ" },
+        { id: "0720_u", no: "0720", name: "フーパ", form: "ときはなたれしフーパ" },
+        { id: "0721", no: "0721", name: "ボルケニオン", form: "" },
+	// ==========================================
+        // 第7世代（アローラ：No.0722〜0809）
+        // ==========================================
+        { id: "0722", no: "0722", name: "モクロー", form: "" },
+        { id: "0723", no: "0723", name: "フクスロー", form: "" },
+        { id: "0724", no: "0724", name: "ジュナイパー", form: "" },
+        { id: "0724_h", no: "0724", name: "ジュナイパー", form: "ヒスイのすがた" },
+        { id: "0725", no: "0725", name: "ニャビー", form: "" },
+        { id: "0726", no: "0726", name: "ニャヒート", form: "" },
+        { id: "0727", no: "0727", name: "ガオガエン", form: "" },
+        { id: "0728", no: "0728", name: "アシマリ", form: "" },
+        { id: "0729", no: "0729", name: "オシャマリ", form: "" },
+        { id: "0730", no: "0730", name: "アシレーヌ", form: "" },
+        { id: "0731", no: "0731", name: "ツツケラ", form: "" },
+        { id: "0732", no: "0732", name: "ケララッパ", form: "" },
+        { id: "0733", no: "0733", name: "ドデカバシ", form: "" },
+        { id: "0734", no: "0734", name: "ヤングース", form: "" },
+        { id: "0735", no: "0735", name: "デカグース", form: "" },
+        { id: "0736", no: "0736", name: "アゴジムシ", form: "" },
+        { id: "0737", no: "0737", name: "デンヂムシ", form: "" },
+        { id: "0738", no: "0738", name: "クワガノン", form: "" },
+        { id: "0739", no: "0739", name: "マケンカニ", form: "" },
+        { id: "0740", no: "0740", name: "ケケンカニ", form: "" },
+        { id: "0741_m", no: "0741", name: "オドリドリ", form: "めらめらスタイル" },
+        { id: "0741_p", no: "0741", name: "オドリドリ", form: "ぱちぱちスタイル" },
+        { id: "0741_f", no: "0741", name: "オドリドリ", form: "ふらふらスタイル" },
+        { id: "0741_s", no: "0741", name: "オドリドリ", form: "まいまいスタイル" },
+        { id: "0742", no: "0742", name: "アブリー", form: "" },
+        { id: "0743", no: "0743", name: "アブリボン", form: "" },
+        { id: "0744", no: "0744", name: "イワンコ", form: "" },
+        { id: "0745_d", no: "0745", name: "ルガルガン", form: "まひるのすがた" },
+        { id: "0745_n", no: "0745", name: "ルガルガン", form: "まよなかのすがた" },
+        { id: "0745_t", no: "0745", name: "ルガルガン", form: "たそがれのすがた" },
+        { id: "0746", no: "0746", name: "ヨワシ", form: "" },
+        { id: "0747", no: "0747", name: "ヒドイデ", form: "" },
+        { id: "0748", no: "0748", name: "ドヒドイデ", form: "" },
+        { id: "0749", no: "0749", name: "ドロバンコ", form: "" },
+        { id: "0750", no: "0750", name: "バンバドロ", form: "" },
+        { id: "0751", no: "0751", name: "シズクモ", form: "" },
+        { id: "0752", no: "0752", name: "オニシズクモ", form: "" },
+        { id: "0753", no: "0753", name: "カリキリ", form: "" },
+        { id: "0754", no: "0754", name: "ラランテス", form: "" },
+        { id: "0755", no: "0755", name: "ネマシュ", form: "" },
+        { id: "0756", no: "0756", name: "マシェード", form: "" },
+        { id: "0757", no: "0757", name: "ヤトウモリ", form: "" },
+        { id: "0758", no: "0758", name: "エンニュート", form: "" },
+        { id: "0759", no: "0759", name: "ヌイコグマ", form: "" },
+        { id: "0760", no: "0760", name: "キテルグマ", form: "" },
+        { id: "0761", no: "0761", name: "アマカジ", form: "" },
+        { id: "0762", no: "0762", name: "アママイコ", form: "" },
+        { id: "0763", no: "0763", name: "アマージョ", form: "" },
+        { id: "0764", no: "0764", name: "キュワワー", form: "" },
+        { id: "0765", no: "0765", name: "ヤレユータン", form: "" },
+        { id: "0766", no: "0766", name: "ナゲツケサル", form: "" },
+        { id: "0767", no: "0767", name: "コソクムシ", form: "" },
+        { id: "0768", no: "0768", name: "グソクムシャ", form: "" },
+        { id: "0769", no: "0769", name: "スナバァ", form: "" },
+        { id: "0770", no: "0770", name: "シロデスナ", form: "" },
+        { id: "0771", no: "0771", name: "ナマコブシ", form: "" },
+        { id: "0772", no: "0772", name: "タイプ：ヌル", form: "" },
+        { id: "0773", no: "0773", name: "シルヴァディ", form: "" },
+        { id: "0774_r", no: "0774", name: "メテノ", form: "あかいろのコア" },
+        { id: "0774_o", no: "0774", name: "メテノ", form: "だいだいいろのコア" },
+        { id: "0774_y", no: "0774", name: "メテノ", form: "きいろのコア" },
+        { id: "0774_g", no: "0774", name: "メテノ", form: "みどりいろのコア" },
+        { id: "0774_b", no: "0774", name: "メテノ", form: "みずいろのコア" },
+        { id: "0774_i", no: "0774", name: "メテノ", form: "あいいろのコア" },
+        { id: "0774_v", no: "0774", name: "メテノ", form: "むらさきいろのコア" },
+        { id: "0775", no: "0775", name: "ネッコアラ", form: "" },
+        { id: "0776", no: "0776", name: "バクガメス", form: "" },
+        { id: "0777", no: "0777", name: "トゲデマル", form: "" },
+        { id: "0778", no: "0778", name: "ミミッキュ", form: "" },
+        { id: "0779", no: "0779", name: "ハギギシリ", form: "" },
+        { id: "0780", no: "0780", name: "ジジーロン", form: "" },
+        { id: "0781", no: "0781", name: "ダダリン", form: "" },
+        { id: "0782", no: "0782", name: "ジャラコ", form: "" },
+        { id: "0783", no: "0783", name: "ジャランゴ", form: "" },
+        { id: "0784", no: "0784", name: "ジャラランガ", form: "" },
+        { id: "0785", no: "0785", name: "カプ・コケコ", form: "" },
+        { id: "0786", no: "0786", name: "カプ・テテフ", form: "" },
+        { id: "0787", no: "0787", name: "カプ・ブルル", form: "" },
+        { id: "0788", no: "0788", name: "カプ・レヒレ", form: "" },
+        { id: "0789", no: "0789", name: "コスモッグ", form: "" },
+        { id: "0790", no: "0790", name: "コスモウム", form: "" },
+        { id: "0791", no: "0791", name: "ソルガレオ", form: "" },
+        { id: "0792", no: "0792", name: "ルナアーラ", form: "" },
+        { id: "0793", no: "0793", name: "ウツロイド", form: "" },
+        { id: "0794", no: "0794", name: "マッシブーン", form: "" },
+        { id: "0795", no: "0795", name: "フェローチェ", form: "" },
+        { id: "0796", no: "0796", name: "デンジュモク", form: "" },
+        { id: "0797", no: "0797", name: "テッカグヤ", form: "" },
+        { id: "0798", no: "0798", name: "カミツルギ", form: "" },
+        { id: "0799", no: "0799", name: "アクジキング", form: "" },
+        { id: "0800", no: "0800", name: "ネクロズマ", form: "" },
+        { id: "0800_m", no: "0800", name: "ネクロズマ", form: "たそがれのたてがみ" },
+        { id: "0800_w", no: "0800", name: "ネクロズマ", form: "あかつきのつばさ" },
+        { id: "0801", no: "0801", name: "マギアナ", form: "" },
+        { id: "0801_o", no: "0801", name: "マギアナ", form: "500ねんまえのいろ" },
+        { id: "0802", no: "0802", name: "マーシャドー", form: "" },
+        { id: "0803", no: "0803", name: "ベベノム", form: "" },
+        { id: "0804", no: "0804", name: "アーゴヨン", form: "" },
+        { id: "0805", no: "0805", name: "ツンデツンデ", form: "" },
+        { id: "0806", no: "0806", name: "ズガドーン", form: "" },
+        { id: "0807", no: "0807", name: "ゼラオラ", form: "" },
+        { id: "0808", no: "0808", name: "メルタン", form: "" },
+        { id: "0809", no: "0809", name: "メルメタル", form: "" },
+
+        // ==========================================
+        // 第8世代（ガラル・ヒスイ：No.0810〜0905）
+        // ==========================================
+        { id: "0810", no: "0810", name: "サルノリ", form: "" },
+        { id: "0811", no: "0811", name: "バチンキー", form: "" },
+        { id: "0812", no: "0812", name: "ゴリランダー", form: "" },
+        { id: "0813", no: "0813", name: "ヒバニー", form: "" },
+        { id: "0814", no: "0814", name: "ラビフット", form: "" },
+        { id: "0815", no: "0815", name: "エースバーン", form: "" },
+        { id: "0816", no: "0816", name: "メッソン", form: "" },
+        { id: "0817", no: "0817", name: "ジメレオン", form: "" },
+        { id: "0818", no: "0818", name: "インテレオン", form: "" },
+        { id: "0819", no: "0819", name: "ホシガリス", form: "" },
+        { id: "0820", no: "0820", name: "ヨクバリス", form: "" },
+        { id: "0821", no: "0821", name: "ココガラ", form: "" },
+        { id: "0822", no: "0822", name: "アオガラス", form: "" },
+        { id: "0823", no: "0823", name: "アーマーガア", form: "" },
+        { id: "0824", no: "0824", name: "サッチムシ", form: "" },
+        { id: "0825", no: "0825", name: "レドームシ", form: "" },
+        { id: "0826", no: "0826", name: "イオルブ", form: "" },
+        { id: "0827", no: "0827", name: "クスネ", form: "" },
+        { id: "0828", no: "0828", name: "フォクスライ", form: "" },
+        { id: "0829", no: "0829", name: "ヒメンカ", form: "" },
+        { id: "0830", no: "0830", name: "ワタシラガ", form: "" },
+        { id: "0831", no: "0831", name: "ウールー", form: "" },
+        { id: "0832", no: "0832", name: "バイウールー", form: "" },
+        { id: "0833", no: "0833", name: "カムカメ", form: "" },
+        { id: "0834", no: "0834", name: "カジリガメ", form: "" },
+        { id: "0835", no: "0835", name: "ワンパチ", form: "" },
+        { id: "0836", no: "0836", name: "パルスワン", form: "" },
+        { id: "0837", no: "0837", name: "タンドン", form: "" },
+        { id: "0838", no: "0838", name: "トロッゴン", form: "" },
+        { id: "0839", no: "0839", name: "セキタンザン", form: "" },
+        { id: "0840", no: "0840", name: "カジッチュ", form: "" },
+        { id: "0841", no: "0841", name: "アップリュー", form: "" },
+        { id: "0842", no: "0842", name: "タルップル", form: "" },
+        { id: "0843", no: "0843", name: "スナヘビ", form: "" },
+        { id: "0844", no: "0844", name: "サダイジャ", form: "" },
+        { id: "0845", no: "0845", name: "ウッウ", form: "" },
+        { id: "0846", no: "0846", name: "サシカマス", form: "" },
+        { id: "0847", no: "0847", name: "カマスジョー", form: "" },
+        { id: "0848", no: "0848", name: "エレズン", form: "" },
+        { id: "0849_h", no: "0849", name: "ストリンダー", form: "ハイなすがた" },
+        { id: "0849_l", no: "0849", name: "ストリンダー", form: "ローなすがた" },
+        { id: "0850", no: "0850", name: "ヤクデ", form: "" },
+        { id: "0851", no: "0851", name: "マルヤクデ", form: "" },
+        { id: "0852", no: "0852", name: "タタッコ", form: "" },
+        { id: "0853", no: "0853", name: "オトスパス", form: "" },
+        { id: "0854_p", no: "0854", name: "ヤバチャ", form: "がんさくフォルム" },
+        { id: "0854_a", no: "0854", name: "ヤバチャ", form: "しんさくフォルム" },
+        { id: "0855_p", no: "0855", name: "ポットデス", form: "がんさくフォルム" },
+        { id: "0855_a", no: "0855", name: "ポットデス", form: "しんさくフォルム" },
+        { id: "0856", no: "0856", name: "ミブリム", form: "" },
+        { id: "0857", no: "0857", name: "テブリム", form: "" },
+        { id: "0858", no: "0858", name: "ブリムオン", form: "" },
+        { id: "0859", no: "0859", name: "ベロバー", form: "" },
+        { id: "0860", no: "0860", name: "ギモー", form: "" },
+        { id: "0861", no: "0861", name: "オーロンゲ", form: "" },
+        { id: "0862", no: "0862", name: "タチフサグマ", form: "" },
+        { id: "0863", no: "0863", name: "ニャイキング", form: "" },
+        { id: "0864", no: "0864", name: "サニゴーン", form: "" },
+        { id: "0865", no: "0865", name: "ネギガナイト", form: "" },
+        { id: "0866", no: "0866", name: "バリコオル", form: "" },
+        { id: "0867", no: "0867", name: "デスバーン", form: "" },
+        { id: "0868", no: "0868", name: "マホミル", form: "" },
+        { id: "0869", no: "0869", name: "マホイップ", form: "" },
+        { id: "0870", no: "0870", name: "タイレーツ", form: "" },
+        { id: "0871", no: "0871", name: "バチンウニ", form: "" },
+        { id: "0872", no: "0872", name: "ユキハミ", form: "" },
+        { id: "0873", no: "0873", name: "モスノウ", form: "" },
+        { id: "0874", no: "0874", name: "イシヘンジン", form: "" },
+        { id: "0875", no: "0875", name: "コオリッポ", form: "" },
+        { id: "0876", no: "0876", name: "イエッサン", form: "" },
+        { id: "0877", no: "0877", name: "モルペコ", form: "" },
+        { id: "0878", no: "0878", name: "ゾウドウ", form: "" },
+        { id: "0879", no: "0879", name: "ダイオウドウ", form: "" },
+        { id: "0880", no: "0880", name: "パッチラゴン", form: "" },
+        { id: "0881", no: "0881", name: "パッチルドン", form: "" },
+        { id: "0882", no: "0882", name: "ウオノラゴン", form: "" },
+        { id: "0883", no: "0883", name: "ウオチルドン", form: "" },
+        { id: "0884", no: "0884", name: "ジュラルドン", form: "" },
+        { id: "0885", no: "0885", name: "ドラメシヤ", form: "" },
+        { id: "0886", no: "0886", name: "ドロンチ", form: "" },
+        { id: "0887", no: "0887", name: "ドラパルト", form: "" },
+        { id: "0888", no: "0888", name: "ザシアン", form: "" },
+        { id: "0889", no: "0889", name: "ザマゼンタ", form: "" },
+        { id: "0890", no: "0890", name: "ムゲンダイナ", form: "" },
+        { id: "0891", no: "0891", name: "ダクマ", form: "" },
+        { id: "0892_s", no: "0892", name: "ウーラオス", form: "いちげきのかた" },
+        { id: "0892_r", no: "0892", name: "ウーラオス", form: "れんげきのかた" },
+        { id: "0893", no: "0893", name: "ザルード", form: "" },
+        { id: "0893_d", no: "0893", name: "ザルード", form: "とうちゃんザルード" },
+        { id: "0894", no: "0894", name: "レジエレキ", form: "" },
+        { id: "0895", no: "0895", name: "レジドラゴ", form: "" },
+        { id: "0896", no: "0896", name: "ブリザポス", form: "" },
+        { id: "0897", no: "0897", name: "レイスポス", form: "" },
+        { id: "0898", no: "0898", name: "バドレックス", form: "" },
+        { id: "0898_i", no: "0898", name: "バドレックス", form: "はくばじょうのすがた" },
+        { id: "0898_s", no: "0898", name: "バドレックス", form: "こくばじょうのすがた" },
+        { id: "0899", no: "0899", name: "アヤシシ", form: "" },
+        { id: "0900", no: "0900", name: "バサギリ", form: "" },
+        { id: "0901", no: "0901", name: "ガチグマ", form: "" },
+        { id: "0901_b", no: "0901", name: "ガチグマ", form: "アカツキ" },
+        { id: "0902", no: "0902", name: "イダイトウ", form: "" },
+        { id: "0903", no: "0903", name: "オオニューラ", form: "" },
+        { id: "0904", no: "0904", name: "ハリーマン", form: "" },
+        { id: "0905", no: "0905", name: "ラブトロス", form: "けしんフォルム" },
+        { id: "0905_t", no: "0905", name: "ラブトロス", form: "れいじゅうフォルム" },
+
+        // ==========================================
+        // 第9世代（パルデア：No.0906〜1025）
+        // ==========================================
+        { id: "0906", no: "0906", name: "ニャオハ", form: "" },
+        { id: "0907", no: "0907", name: "ニャローテ", form: "" },
+        { id: "0908", no: "0908", name: "マスカーニャ", form: "" },
+        { id: "0909", no: "0909", name: "ホゲータ", form: "" },
+        { id: "0910", no: "0910", name: "アチゲータ", form: "" },
+        { id: "0911", no: "0911", name: "ラウドボーン", form: "" },
+        { id: "0912", no: "0912", name: "クワッス", form: "" },
+        { id: "0913", no: "0913", name: "ウェルカモ", form: "" },
+        { id: "0914", no: "0914", name: "ウェーニバル", form: "" },
+        { id: "0915", no: "0915", name: "グルトン", form: "" },
+        { id: "0916", no: "0916", name: "パフュートン", form: "" },
+        { id: "0917", no: "0917", name: "タマンチュラ", form: "" },
+        { id: "0918", no: "0918", name: "ワナイダー", form: "" },
+        { id: "0919", no: "0919", name: "マメバッタ", form: "" },
+        { id: "0920", no: "0920", name: "エクスレッグ", form: "" },
+        { id: "0921", no: "0921", name: "パモ", form: "" },
+        { id: "0922", no: "0922", name: "パモット", form: "" },
+        { id: "0923", no: "0923", name: "パーモット", form: "" },
+        { id: "0924", no: "0924", name: "ワッカネズミ", form: "" },
+        { id: "0925_4", no: "0925", name: "イッカネズミ", form: "4ひきかぞく" },
+        { id: "0925_3", no: "0925", name: "イッカネズミ", form: "3びきかぞく" },
+        { id: "0926", no: "0926", name: "パピモッチ", form: "" },
+        { id: "0927", no: "0927", name: "バウッツェル", form: "" },
+        { id: "0928", no: "0928", name: "ミニーブ", form: "" },
+        { id: "0929", no: "0929", name: "オリーニョ", form: "" },
+        { id: "0930", no: "0930", name: "オリーヴァ", form: "" },
+        { id: "0931_g", no: "0931", name: "イキリンコ", form: "グリーンフェザー" },
+        { id: "0931_b", no: "0931", name: "イキリンコ", form: "ブルーフェザー" },
+        { id: "0931_y", no: "0931", name: "イキリンコ", form: "イエローフェザー" },
+        { id: "0931_w", no: "0931", name: "イキリンコ", form: "ホワイトフェザー" },
+        { id: "0932", no: "0932", name: "コジオ", form: "" },
+        { id: "0933", no: "0933", name: "ジオヅム", form: "" },
+        { id: "0934", no: "0934", name: "キョジオーン", form: "" },
+        { id: "0935", no: "0935", name: "カルボウ", form: "" },
+        { id: "0936", no: "0936", name: "グレンアルマ", form: "" },
+        { id: "0937", no: "0937", name: "ソウブレイズ", form: "" },
+        { id: "0938", no: "0938", name: "ズピカ", form: "" },
+        { id: "0939", no: "0939", name: "ハラバリー", form: "" },
+        { id: "0940", no: "0940", name: "カイデン", form: "" },
+        { id: "0941", no: "0941", name: "タイカイデン", form: "" },
+        { id: "0942", no: "0942", name: "オラチフ", form: "" },
+        { id: "0943", no: "0943", name: "マフィティフ", form: "" },
+        { id: "0944", no: "0944", name: "シルシュルー", form: "" },
+        { id: "0945", no: "0945", name: "タギングル", form: "" },
+        { id: "0946", no: "0946", name: "アノクサ", form: "" },
+        { id: "0947", no: "0947", name: "アノホラグサ", form: "" },
+        { id: "0948", no: "0948", name: "ノノクラゲ", form: "" },
+        { id: "0949", no: "0949", name: "リククラゲ", form: "" },
+        { id: "0950", no: "0950", name: "ガケガニ", form: "" },
+        { id: "0951", no: "0951", name: "カプサイジ", form: "" },
+        { id: "0952", no: "0952", name: "スコヴィラン", form: "" },
+        { id: "0953", no: "0953", name: "シガロコ", form: "" },
+        { id: "0954", no: "0954", name: "ベラカス", form: "" },
+        { id: "0955", no: "0955", name: "ヒラヒナ", form: "" },
+        { id: "0956", no: "0956", name: "クエスパトラ", form: "" },
+        { id: "0957", no: "0957", name: "カヌチャン", form: "" },
+        { id: "0958", no: "0958", name: "ナカヌチャン", form: "" },
+        { id: "0959", no: "0959", name: "デカヌチャン", form: "" },
+        { id: "0960", no: "0960", name: "ウミディグダ", form: "" },
+        { id: "0961", no: "0961", name: "ウミトリオ", form: "" },
+        { id: "0962", no: "0962", name: "オトシドリ", form: "" },
+        { id: "0963", no: "0963", name: "ナミイルカ", form: "" },
+        { id: "0964", no: "0964", name: "イルカマン", form: "" },
+        { id: "0965", no: "0965", name: "ブロロン", form: "" },
+        { id: "0966", no: "0966", name: "ブロロローム", form: "" },
+        { id: "0967", no: "0967", name: "モトトカゲ", form: "" },
+        { id: "0968", no: "0968", name: "ミミズズ", form: "" },
+        { id: "0969", no: "0969", name: "キラーメ", form: "" },
+        { id: "0970", no: "0970", name: "キラフロル", form: "" },
+        { id: "0971", no: "0971", name: "ボチ", form: "" },
+        { id: "0972", no: "0972", name: "ハカドッグ", form: "" },
+        { id: "0973", no: "0973", name: "カラミンゴ", form: "" },
+        { id: "0974", no: "0974", name: "アルクジラ", form: "" },
+        { id: "0975", no: "0975", name: "ハルクジラ", form: "" },
+        { id: "0976", no: "0976", name: "ミガルーサ", form: "" },
+        { id: "0977", no: "0977", name: "ヘイラッシャ", form: "" },
+        { id: "0978_c", no: "0978", name: "シャリタツ", form: "そったすがた" },
+        { id: "0978_d", no: "0978", name: "シャリタツ", form: "たれたすがた" },
+        { id: "0978_s", no: "0978", name: "シャリタツ", form: "のびたすがた" },
+        { id: "0979", no: "0979", name: "コノヨザル", form: "" },
+        { id: "0980", no: "0980", name: "ドオー", form: "" },
+        { id: "0981", no: "0981", name: "リキキリン", form: "" },
+        { id: "0982_2", no: "0982", name: "ノココッチ", form: "ふたふしフォルム" },
+        { id: "0982_3", no: "0982", name: "ノココッチ", form: "みつふしフォルム" },
+        { id: "0983", no: "0983", name: "ドドゲザン", form: "" },
+        { id: "0984", no: "0984", name: "イダイナキバ", form: "" },
+        { id: "0985", no: "0985", name: "サケブシッポ", form: "" },
+        { id: "0986", no: "0986", name: "アラブルタケ", form: "" },
+        { id: "0987", no: "0987", name: "ハバタクカミ", form: "" },
+        { id: "0988", no: "0988", name: "チヲハウハネ", form: "" },
+        { id: "0989", no: "0989", name: "スナノケガワ", form: "" },
+        { id: "0990", no: "0990", name: "テツノワダチ", form: "" },
+        { id: "0991", no: "0991", name: "テツノツツミ", form: "" },
+        { id: "0992", no: "0992", name: "テツノカイナ", form: "" },
+        { id: "0993", no: "0993", name: "テツノコウベ", form: "" },
+        { id: "0994", no: "0994", name: "テツノドクガ", form: "" },
+        { id: "0995", no: "0995", name: "テツノイバラ", form: "" },
+        { id: "0996", no: "0996", name: "セビエ", form: "" },
+        { id: "0997", no: "0997", name: "セゴール", form: "" },
+        { id: "0998", no: "0998", name: "セグレイブ", form: "" },
+        { id: "0999_c", no: "0999", name: "コレクレー", form: "はこフォルム" },
+        { id: "0999_r", no: "0999", name: "コレクレー", form: "とほフォルム" },
+        { id: "1000", no: "1000", name: "サーフゴー", form: "" },
+        { id: "1001", no: "1001", name: "チオンジェン", form: "" },
+        { id: "1002", no: "1002", name: "パオジアン", form: "" },
+        { id: "1003", no: "1003", name: "ディンルー", form: "" },
+        { id: "1004", no: "1004", name: "イーユイ", form: "" },
+        { id: "1005", no: "1005", name: "トドロクツキ", form: "" },
+        { id: "1006", no: "1006", name: "テツノブジン", form: "" },
+        { id: "1007", no: "1007", name: "コライドン", form: "" },
+        { id: "1008", no: "1008", name: "ミライドン", form: "" },
+        { id: "1009", no: "1009", name: "ウネルミナモ", form: "" },
+        { id: "1010", no: "1010", name: "テツノイサハ", form: "" },
+        { id: "1011", no: "1011", name: "カミッチュ", form: "" },
+        { id: "1012_c", no: "1012", name: "チャデス", form: "マガイモノのすがた" },
+        { id: "1012_u", no: "1012", name: "チャデス", form: "タカイモノのすがた" },
+        { id: "1013_u", no: "1013", name: "ヤバソチャ", form: "ボンサクのすがた" },
+        { id: "1013_m", no: "1013", name: "ヤバソチャ", form: "ケッサクのすがた" },
+        { id: "1014", no: "1014", name: "イイネイヌ", form: "" },
+        { id: "1015", no: "1015", name: "マシマシラ", form: "" },
+        { id: "1016", no: "1016", name: "キチキギス", form: "" },
+        { id: "1017_t", no: "1017", name: "オーガポン", form: "みどりのめん" },
+        { id: "1017_w", no: "1017", name: "オーガポン", form: "いどのめん" },
+        { id: "1017_h", no: "1017", name: "オーガポン", form: "かまどのめん" },
+        { id: "1017_c", no: "1017", name: "オーガポン", form: "いしずえのめん" },
+        { id: "1018", no: "1018", name: "ブリジュラス", form: "" },
+        { id: "1019", no: "1019", name: "カミツオロチ", form: "" },
+        { id: "1020", no: "1020", name: "ウガツホムラ", form: "" },
+        { id: "1021", no: "1021", name: "タケルライコ", form: "" },
+        { id: "1022", no: "1022", name: "テツノイワオ", form: "" },
+        { id: "1023", no: "1023", name: "テツノカシラ", form: "" },
+        { id: "1024", no: "1024", name: "テラパゴス", form: "" },
+        { id: "1025", no: "1025", name: "モモワロウ", form: "" }
+      ],
+
+      // ==========================================
+      // アンノーン図鑑（全28種）
+      // ==========================================
+      unown: [
+        { id: "unown_a", no: "0201", name: "アンノーン", form: "A" },
+        { id: "unown_b", no: "0201", name: "アンノーン", form: "B" },
+        { id: "unown_c", no: "0201", name: "アンノーン", form: "C" },
+        { id: "unown_d", no: "0201", name: "アンノーン", form: "D" },
+        { id: "unown_e", no: "0201", name: "アンノーン", form: "E" },
+        { id: "unown_f", no: "0201", name: "アンノーン", form: "F" },
+        { id: "unown_g", no: "0201", name: "アンノーン", form: "G" },
+        { id: "unown_h", no: "0201", name: "アンノーン", form: "H" },
+        { id: "unown_i", no: "0201", name: "アンノーン", form: "I" },
+        { id: "unown_j", no: "0201", name: "アンノーン", form: "J" },
+        { id: "unown_k", no: "0201", name: "アンノーン", form: "K" },
+        { id: "unown_l", no: "0201", name: "アンノーン", form: "L" },
+        { id: "unown_m", no: "0201", name: "アンノーン", form: "M" },
+        { id: "unown_n", no: "0201", name: "アンノーン", form: "N" },
+        { id: "unown_o", no: "0201", name: "アンノーン", form: "O" },
+        { id: "unown_p", no: "0201", name: "アンノーン", form: "P" },
+        { id: "unown_q", no: "0201", name: "アンノーン", form: "Q" },
+        { id: "unown_r", no: "0201", name: "アンノーン", form: "R" },
+        { id: "unown_s", no: "0201", name: "アンノーン", form: "S" },
+        { id: "unown_t", no: "0201", name: "アンノーン", form: "T" },
+        { id: "unown_u", no: "0201", name: "アンノーン", form: "U" },
+        { id: "unown_v", no: "0201", name: "アンノーン", form: "V" },
+        { id: "unown_w", no: "0201", name: "アンノーン", form: "W" },
+        { id: "unown_x", no: "0201", name: "アンノーン", form: "X" },
+        { id: "unown_y", no: "0201", name: "アンノーン", form: "Y" },
+        { id: "unown_z", no: "0201", name: "アンノーン", form: "Z" },
+        { id: "unown_ex", no: "0201", name: "アンノーン", form: "！" },
+        { id: "unown_qu", no: "0201", name: "アンノーン", form: "？" }
+      ],
+
+      // ==========================================
+      // ビビヨン図鑑（全20種）
+      // ==========================================
+      vivillon: [
+        { id: "viv_icy", no: "0666", name: "ビビヨン", form: "ひょうせつのもよう" },
+        { id: "viv_pol", no: "0666", name: "ビビヨン", form: "ゆきぐにのもよう" },
+        { id: "viv_tun", no: "0666", name: "ビビヨン", form: "せつげんのもよう" },
+        { id: "viv_con", no: "0666", name: "ビビヨン", form: "たいりくのもよう" },
+        { id: "viv_gar", no: "0666", name: "ビビヨン", form: "ていえんのもよう" },
+        { id: "viv_ele", no: "0666", name: "ビビヨン", form: "みやびなもよう" },
+        { id: "viv_mea", no: "0666", name: "ビビヨン", form: "はなぞののもよう" },
+        { id: "viv_mod", no: "0666", name: "ビビヨン", form: "モダンなもよう" },
+        { id: "viv_mar", no: "0666", name: "ビビヨン", form: "マリンなもよう" },
+        { id: "viv_arc", no: "0666", name: "ビビヨン", form: "ぐんとうのもよう" },
+        { id: "viv_hig", no: "0666", name: "ビビヨン", form: "こうやのもよう" },
+        { id: "viv_san", no: "0666", name: "ビビヨン", form: "さじんのもよう" },
+        { id: "viv_riv", no: "0666", name: "ビビヨン", form: "たいがのもよう" },
+        { id: "viv_mon", no: "0666", name: "ビビヨン", form: "スコールのもよう" },
+        { id: "viv_sav", no: "0666", name: "ビビヨン", form: "サバンナのもよう" },
+        { id: "viv_sun", no: "0666", name: "ビビヨン", form: "たいようのもよう" },
+        { id: "viv_oce", no: "0666", name: "ビビヨン", form: "オーシャンなもよう" },
+        { id: "viv_jun", no: "0666", name: "ビビヨン", form: "ジャングルのもよう" },
+        { id: "viv_fan", no: "0666", name: "ビビヨン", form: "ファンシーなもよう" },
+        { id: "viv_pok", no: "0666", name: "ビビヨン", form: "ボールのもよう" }
+      ],
+
+      // ==========================================
+      // マホイップ図鑑（9種フレーバー × 7種アメざいく ＝ 全63種）
+      // ※色違いは外観が共通のため、7種のアメざいく別で管理できるよう並べています
+      // ==========================================
+      alcremie: [
+        // ミルキィバニラ
+        { id: "alc_vc_st", no: "0869", name: "マホイップ", form: "ミルキィバニラ・いちご" },
+        { id: "alc_vc_be", no: "0869", name: "マホイップ", form: "ミルキィバニラ・ベリー" },
+        { id: "alc_vc_lo", no: "0869", name: "マホイップ", form: "ミルキィバニラ・ハート" },
+        { id: "alc_vc_sr", no: "0869", name: "マホイップ", form: "ミルキィバニラ・スター" },
+        { id: "alc_vc_cl", no: "0869", name: "マホイップ", form: "ミルキィバニラ・よつば" },
+        { id: "alc_vc_fl", no: "0869", name: "マホイップ", form: "ミルキィバニラ・おはな" },
+        { id: "alc_vc_ri", no: "0869", name: "マホイップ", form: "ミルキィバニラ・リボン" },
+        // ミルキィルビー
+        { id: "alc_rc_st", no: "0869", name: "マホイップ", form: "ミルキィルビー・いちご" },
+        { id: "alc_rc_be", no: "0869", name: "マホイップ", form: "ミルキィルビー・ベリー" },
+        { id: "alc_rc_lo", no: "0869", name: "マホイップ", form: "ミルキィルビー・ハート" },
+        { id: "alc_rc_sr", no: "0869", name: "マホイップ", form: "ミルキィルビー・スター" },
+        { id: "alc_rc_cl", no: "0869", name: "マホイップ", form: "ミルキィルビー・よつば" },
+        { id: "alc_rc_fl", no: "0869", name: "マホイップ", form: "ミルキィルビー・おはな" },
+        { id: "alc_rc_ri", no: "0869", name: "マホイップ", form: "ミルキィルビー・リボン" },
+        // ミルキィまっちゃ
+        { id: "alc_mc_st", no: "0869", name: "マホイップ", form: "ミルキィまっちゃ・いちご" },
+        { id: "alc_mc_be", no: "0869", name: "マホイップ", form: "ミルキィまっちゃ・ベリー" },
+        { id: "alc_mc_lo", no: "0869", name: "マホイップ", form: "ミルキィまっちゃ・ハート" },
+        { id: "alc_mc_sr", no: "0869", name: "マホイップ", form: "ミルキィまっちゃ・スター" },
+        { id: "alc_mc_cl", no: "0869", name: "マホイップ", form: "ミルキィまっちゃ・よつば" },
+        { id: "alc_mc_fl", no: "0869", name: "マホイップ", form: "ミルキィまっちゃ・おはな" },
+        { id: "alc_mc_ri", no: "0869", name: "マホイップ", form: "ミルキィまっちゃ・リボン" },
+        // ミルキィミント
+        { id: "alc_mi_st", no: "0869", name: "マホイップ", form: "ミルキィミント・いちご" },
+        { id: "alc_mi_be", no: "0869", name: "マホイップ", form: "ミルキィミント・ベリー" },
+        { id: "alc_mi_lo", no: "0869", name: "マホイップ", form: "ミルキィミント・ハート" },
+        { id: "alc_mi_sr", no: "0869", name: "マホイップ", form: "ミルキィミント・スター" },
+        { id: "alc_mi_cl", no: "0869", name: "マホイップ", form: "ミルキィミント・よつば" },
+        { id: "alc_mi_fl", no: "0869", name: "マホイップ", form: "ミルキィミント・おはな" },
+        { id: "alc_mi_ri", no: "0869", name: "マホイップ", form: "ミルキィミント・リボン" },
+        // ミルキィレモン
+        { id: "alc_le_st", no: "0869", name: "マホイップ", form: "ミルキィレモン・いちご" },
+        { id: "alc_le_be", no: "0869", name: "マホイップ", form: "ミルキィレモン・ベリー" },
+        { id: "alc_le_lo", no: "0869", name: "マホイップ", form: "ミルキィレモン・ハート" },
+        { id: "alc_le_sr", no: "0869", name: "マホイップ", form: "ミルキィレモン・スター" },
+        { id: "alc_le_cl", no: "0869", name: "マホイップ", form: "ミルキィレモン・よつば" },
+        { id: "alc_le_fl", no: "0869", name: "マホイップ", form: "ミルキィレモン・おはな" },
+        { id: "alc_le_ri", no: "0869", name: "マホイップ", form: "ミルキィレモン・リボン" },
+        // ミルキィソルト
+        { id: "alc_sa_st", no: "0869", name: "マホイップ", form: "ミルキィソルト・いちご" },
+        { id: "alc_sa_be", no: "0869", name: "マホイップ", form: "ミルキィソルト・ベリー" },
+        { id: "alc_sa_lo", no: "0869", name: "マホイップ", form: "ミルキィソルト・ハート" },
+        { id: "alc_sa_sr", no: "0869", name: "マホイップ", form: "ミルキィソルト・スター" },
+        { id: "alc_sa_cl", no: "0869", name: "マホイップ", form: "ミルキィソルト・よつば" },
+        { id: "alc_sa_fl", no: "0869", name: "マホイップ", form: "ミルキィソルト・おはな" },
+        { id: "alc_sa_ri", no: "0869", name: "マホイップ", form: "ミルキィソルト・リボン" },
+        // ルビーミックス
+        { id: "alc_rs_st", no: "0869", name: "マホイップ", form: "ルビーミックス・いちご" },
+        { id: "alc_rs_be", no: "0869", name: "マホイップ", form: "ルビーミックス・ベリー" },
+        { id: "alc_rs_lo", no: "0869", name: "マホイップ", form: "ルビーミックス・ハート" },
+        { id: "alc_rs_sr", no: "0869", name: "マホイップ", form: "ルビーミックス・スター" },
+        { id: "alc_rs_cl", no: "0869", name: "マホイップ", form: "ルビーミックス・よつば" },
+        { id: "alc_rs_fl", no: "0869", name: "マホイップ", form: "ルビーミックス・おはな" },
+        { id: "alc_rs_ri", no: "0869", name: "マホイップ", form: "ルビーミックス・リボン" },
+        // キャラメルミックス
+        { id: "alc_cs_st", no: "0869", name: "マホイップ", form: "キャラメルミックス・いちご" },
+        { id: "alc_cs_be", no: "0869", name: "マホイップ", form: "キャラメルミックス・ベリー" },
+        { id: "alc_cs_lo", no: "0869", name: "マホイップ", form: "キャラメルミックス・ハート" },
+        { id: "alc_cs_sr", no: "0869", name: "マホイップ", form: "キャラメルミックス・スター" },
+        { id: "alc_cs_cl", no: "0869", name: "マホイップ", form: "キャラメルミックス・よつば" },
+        { id: "alc_cs_fl", no: "0869", name: "マホイップ", form: "キャラメルミックス・おはな" },
+        { id: "alc_cs_ri", no: "0869", name: "マホイップ", form: "キャラメルミックス・リボン" },
+        // トリプルミックス
+        { id: "alc_ts_st", no: "0869", name: "マホイップ", form: "トリプルミックス・いちご" },
+        { id: "alc_ts_be", no: "0869", name: "マホイップ", form: "トリプルミックス・ベリー" },
+        { id: "alc_ts_lo", no: "0869", name: "マホイップ", form: "トリプルミックス・ハート" },
+        { id: "alc_ts_sr", no: "0869", name: "マホイップ", form: "トリプルミックス・スター" },
+        { id: "alc_ts_cl", no: "0869", name: "マホイップ", form: "トリプルミックス・よつば" },
+        { id: "alc_ts_fl", no: "0869", name: "マホイップ", form: "トリプルミックス・おはな" },
+        { id: "alc_ts_ri", no: "0869", name: "マホイップ", form: "トリプルミックス・リボン" }
+      ]
+      // 将来ここに unown, vivillon, alcremie の配列を追加
+    };
+
+    // ==========================================
+    // 2. 状態管理（localStorageに自動保存）
+    // ==========================================
+    const STORAGE_KEY = "poke_home_premier_dex_v1";
+    let currentDex = "national";
+    let currentMode = "normal"; // "normal" or "shiny"
+
+    // 保存データ構造: { normal: { [id]: { caught: bool, premier: bool } }, shiny: { [id]: { caught: bool, premier: bool } } }
+    let saveData = loadSaveData();
+
+    function loadSaveData() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return {
+            normal: parsed.normal || {},
+            shiny: parsed.shiny || {}
+          };
+        }
+      } catch (e) {
+        console.error("Load error", e);
+      }
+      return { normal: {}, shiny: {} };
+    }
+
+    function persistSaveData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
+    }
+
+    // ==========================================
+    // 3. ボールアイコンSVG生成（未チェック時はグレー、チェック時はプレミアボール配色）
+    // ==========================================
+    function getBallSVG(isPremier) {
+      if (!isPremier) {
+        // 未捕獲（グレーアウトしたモンスターボール）
+        return `
+          <svg class="ball-icon" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="18" cy="18" r="15" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2.5"/>
+            <path d="M3 18H33" stroke="#94a3b8" stroke-width="2.5"/>
+            <circle cx="18" cy="18" r="5" fill="#f8fafc" stroke="#94a3b8" stroke-width="2.5"/>
+          </svg>
+        `;
+      } else {
+        // プレミアボール（白ベース＋赤い中央ライン）
+        return `
+          <svg class="ball-icon" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="18" cy="18" r="15" fill="#ffffff" stroke="#334155" stroke-width="2.5"/>
+            <path d="M3.5 18H32.5" stroke="#ef4444" stroke-width="3.5"/>
+            <circle cx="18" cy="18" r="5.5" fill="#ffffff" stroke="#ef4444" stroke-width="2.5"/>
+            <circle cx="18" cy="18" r="2" fill="#ef4444"/>
+          </svg>
+        `;
+      }
+    }
+
+    // ==========================================
+    // 4. タップ操作・画面描画
+    // ==========================================
+    function toggleCaught(id) {
+      const modeStore = saveData[currentMode];
+      const current = modeStore[id] || { caught: false, premier: false };
+      const nextCaught = !current.caught;
+
+      // 所持をOFFにした場合は、プレミアボールもOFFにする
+      modeStore[id] = {
+        caught: nextCaught,
+        premier: nextCaught ? current.premier : false
+      };
+
+      persistSaveData();
+      renderList();
+    }
+
+    function togglePremier(event, id) {
+      event.stopPropagation(); // タイルのクリックイベント発火を防ぐ
+      const modeStore = saveData[currentMode];
+      const current = modeStore[id] || { caught: false, premier: false };
+      const nextPremier = !current.premier;
+
+      // 連動動作ON: プレミアボールをONにしたら、所持も自動でONにする
+      modeStore[id] = {
+        caught: nextPremier ? true : current.caught,
+        premier: nextPremier
+      };
+
+      persistSaveData();
+      renderList();
+    }
+
+    function switchMode(mode) {
+      currentMode = mode;
+      document.body.setAttribute("data-mode", mode);
+      document.querySelectorAll(".mode-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-mode") === mode);
+      });
+      renderList();
+    }
+
+    function switchDex(dexKey) {
+      currentDex = dexKey;
+      document.querySelectorAll(".page-tab").forEach(tab => {
+        tab.classList.toggle("active", tab.getAttribute("data-dex") === dexKey);
+      });
+      // 全国図鑑のときだけ地方フィルターを表示する
+      const regionSelect = document.getElementById("regionSelect");
+      if (regionSelect) {
+        regionSelect.style.display = (dexKey === "national") ? "block" : "none";
+      }
+      renderList();
+    }
+
+    // 図鑑番号から地方を判定する関数
+    function matchRegion(pokeNo, region) {
+      if (currentDex !== "national" || region === "all") return true;
+      const num = parseInt(pokeNo, 10);
+      if (region === "kanto") return num >= 1 && num <= 151;
+      if (region === "johto") return num >= 152 && num <= 251;
+      if (region === "hoenn") return num >= 252 && num <= 386;
+      if (region === "sinnoh") return num >= 387 && num <= 493;
+      if (region === "unova") return num >= 494 && num <= 649;
+      if (region === "kalos") return num >= 650 && num <= 721;
+      if (region === "alola") return num >= 722 && num <= 809;
+      if (region === "galar") return num >= 810 && num <= 905;
+      if (region === "paldea") return num >= 906 && num <= 1025;
+      return true;
+    }
+
+    function updateStats() {
+      const list = DEX_DATA[currentDex] || [];
+      const modeStore = saveData[currentMode];
+      const region = document.getElementById("regionSelect") ? document.getElementById("regionSelect").value : "all";
+      
+      let total = 0;
+      let caught = 0;
+      let premier = 0;
+
+      list.forEach(p => {
+        if (!matchRegion(p.no, region)) return;
+        total++;
+        const st = modeStore[p.id];
+        if (st?.caught) caught++;
+        if (st?.premier) premier++;
+      });
+
+      document.getElementById("totalCount").textContent = total;
+      document.getElementById("caughtCount").textContent = caught;
+      document.getElementById("premierCount").textContent = premier;
+    }
+
+    function renderList() {
+      const listContainer = document.getElementById("pokemonList");
+      const keyword = document.getElementById("searchInput").value.trim().toLowerCase();
+      const filterType = document.getElementById("filterSelect").value;
+      const region = document.getElementById("regionSelect") ? document.getElementById("regionSelect").value : "all";
+      const list = DEX_DATA[currentDex] || [];
+      const modeStore = saveData[currentMode];
+
+      updateStats();
+
+      const fragment = document.createDocumentFragment();
+
+      list.forEach(poke => {
+        // 地方フィルタ
+        if (!matchRegion(poke.no, region)) return;
+
+        const st = modeStore[poke.id] || { caught: false, premier: false };
+
+        // 検索フィルタ
+        if (keyword) {
+          const matchName = poke.name.toLowerCase().includes(keyword);
+          const matchNo = poke.no.includes(keyword);
+          const matchForm = (poke.form || "").toLowerCase().includes(keyword);
+          if (!matchName && !matchNo && !matchForm) return;
+        }
+
+        // 状態フィルタ
+        if (filterType === "uncaught" && st.caught) return;
+        if (filterType === "unpremier" && st.premier) return;
+        if (filterType === "premier" && !st.premier) return;
+
+        const tile = document.createElement("div");
+        tile.className = "poke-tile" + (st.caught ? " caught" : "");
+        tile.onclick = () => toggleCaught(poke.id);
+
+        const formHtml = poke.form ? `<span class="poke-form">${poke.form}</span>` : "";
+
+        tile.innerHTML = `
+          <div class="poke-info">
+            <span class="poke-num">No.${poke.no}</span>
+            <span class="poke-name">${poke.name}</span>
+            ${formHtml}
+          </div>
+          <button class="ball-btn ${st.premier ? "premier" : ""}" aria-label="プレミアボール切替" onclick="togglePremier(event, '${poke.id}')">
+            ${getBallSVG(st.premier)}
+          </button>
+        `;
+
+        fragment.appendChild(tile);
+      });
+
+      listContainer.innerHTML = "";
+      listContainer.appendChild(fragment);
+    }
+
+    // ==========================================
+    // 5. バックアップ・復元機能
+    // ==========================================
+    function openBackupModal() {
+      document.getElementById("backupText").value = JSON.stringify(saveData);
+      document.getElementById("backupModal").classList.add("open");
+    }
+
+    function closeBackupModal() {
+      document.getElementById("backupModal").classList.remove("open");
+    }
+
+    function copyBackup() {
+      const textarea = document.getElementById("backupText");
+      textarea.select();
+      document.execCommand("copy");
+      alert("バックアップデータをコピーしました！");
+    }
+
+    function restoreBackup() {
+      try {
+        const raw = document.getElementById("backupText").value.trim();
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && parsed.normal && parsed.shiny) {
+          saveData = parsed;
+          persistSaveData();
+          renderList();
+          closeBackupModal();
+          alert("データを復元しました！");
+        } else {
+          alert("データの形式が正しくありません。");
+        }
+      } catch (e) {
+        alert("データの読み込みに失敗しました。文字列が欠けていないか確認してください。");
+      }
+    }
+
+    // 初期描画
+    renderList();
+  </script>
+</body>
+</html>
